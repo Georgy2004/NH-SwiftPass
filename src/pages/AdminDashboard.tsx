@@ -33,6 +33,49 @@ const AdminDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Function to check and update expired bookings
+  const checkAndUpdateExpiredBookings = () => {
+    const currentTime = new Date();
+    
+    setBookings(prevBookings => {
+      const updatedBookings = prevBookings.map(booking => {
+        if (booking.status === 'active' && booking.timeSlot) {
+          // Parse time slot (e.g., "10:25-10:35")
+          const timeSlotEnd = booking.timeSlot.split('-')[1];
+          const [hours, minutes] = timeSlotEnd.split(':').map(Number);
+          
+          // Create end time for today
+          const endTime = new Date();
+          endTime.setHours(hours, minutes, 0, 0);
+          
+          // If current time exceeds the end time, mark as expired
+          if (currentTime > endTime) {
+            return { ...booking, status: 'expired' };
+          }
+        }
+        return booking;
+      });
+      
+      // Update localStorage with the new booking status
+      const savedBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
+      const allBookings = savedBookings.map((savedBooking: any) => {
+        const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
+        return updatedBooking || savedBooking;
+      });
+      localStorage.setItem('admin_bookings', JSON.stringify(allBookings));
+      
+      // Also update driver bookings
+      const driverBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
+      const updatedDriverBookings = driverBookings.map((driverBooking: any) => {
+        const updatedBooking = updatedBookings.find(b => b.id === driverBooking.id);
+        return updatedBooking ? { ...driverBooking, status: updatedBooking.status } : driverBooking;
+      });
+      localStorage.setItem('driver_bookings', JSON.stringify(updatedDriverBookings));
+      
+      return updatedBookings;
+    });
+  };
+
   useEffect(() => {
     if (!user || user.role !== 'admin') {
       navigate('/login');
@@ -46,6 +89,14 @@ const AdminDashboard = () => {
 
     const allBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
     setBookings(allBookings);
+    
+    // Check for expired bookings immediately
+    checkAndUpdateExpiredBookings();
+    
+    // Set up interval to check for expired bookings every 30 seconds
+    const interval = setInterval(checkAndUpdateExpiredBookings, 30000);
+    
+    return () => clearInterval(interval);
   }, [user, navigate]);
 
   const handleLogout = () => {

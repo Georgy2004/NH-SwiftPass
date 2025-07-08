@@ -26,6 +26,49 @@ const DriverDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
 
+  // Function to check and update expired bookings
+  const checkAndUpdateExpiredBookings = () => {
+    const currentTime = new Date();
+    
+    setBookings(prevBookings => {
+      const updatedBookings = prevBookings.map(booking => {
+        if (booking.status === 'active' && booking.timeSlot) {
+          // Parse time slot (e.g., "10:25-10:35")
+          const timeSlotEnd = booking.timeSlot.split('-')[1];
+          const [hours, minutes] = timeSlotEnd.split(':').map(Number);
+          
+          // Create end time for today
+          const endTime = new Date();
+          endTime.setHours(hours, minutes, 0, 0);
+          
+          // If current time exceeds the end time, mark as expired
+          if (currentTime > endTime) {
+            return { ...booking, status: 'expired' as const };
+          }
+        }
+        return booking;
+      });
+      
+      // Update localStorage with the new booking status
+      const savedBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
+      const allBookings = savedBookings.map((savedBooking: any) => {
+        const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
+        return updatedBooking || savedBooking;
+      });
+      localStorage.setItem('driver_bookings', JSON.stringify(allBookings));
+      
+      // Also update admin bookings
+      const adminBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
+      const updatedAdminBookings = adminBookings.map((adminBooking: any) => {
+        const updatedBooking = updatedBookings.find(b => b.id === adminBooking.id);
+        return updatedBooking ? { ...adminBooking, status: updatedBooking.status } : adminBooking;
+      });
+      localStorage.setItem('admin_bookings', JSON.stringify(updatedAdminBookings));
+      
+      return updatedBookings;
+    });
+  };
+
   useEffect(() => {
     if (!user || user.role !== 'driver') {
       navigate('/login');
@@ -36,6 +79,14 @@ const DriverDashboard = () => {
     const savedBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
     const userBookings = savedBookings.filter((booking: any) => booking.driverId === user.id);
     setBookings(userBookings);
+    
+    // Check for expired bookings immediately
+    checkAndUpdateExpiredBookings();
+    
+    // Set up interval to check for expired bookings every 30 seconds
+    const interval = setInterval(checkAndUpdateExpiredBookings, 30000);
+    
+    return () => clearInterval(interval);
   }, [user, navigate]);
 
   const handleAddBalance = () => {
