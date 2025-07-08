@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,11 +16,13 @@ const TOLL_BOOTHS = [
   { id: '3', name: 'Chennai-Bangalore - Krishnagiri', baseFee: 95, expressCharge: 60 },
   { id: '4', name: 'Hyderabad-Vijayawada - Panthangi', baseFee: 75, expressCharge: 45 },
   { id: '5', name: 'Ahmedabad-Mumbai - Vadodara', baseFee: 65, expressCharge: 40 },
+  { id: '6', name: 'NHAI GIPL Thrissur Paliyekkara Toll Plaza', baseFee: 80, expressCharge: 55 },
 ];
 
 const BookExpress = () => {
   const { user, updateBalance } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [selectedToll, setSelectedToll] = useState('');
   const [distance, setDistance] = useState('');
   const [timeSlot, setTimeSlot] = useState('');
@@ -32,7 +33,13 @@ const BookExpress = () => {
       navigate('/login');
       return;
     }
-  }, [user, navigate]);
+
+    // Check if toll was pre-selected from URL
+    const preSelectedToll = searchParams.get('toll');
+    if (preSelectedToll) {
+      setSelectedToll(preSelectedToll);
+    }
+  }, [user, navigate, searchParams]);
 
   useEffect(() => {
     if (distance && parseFloat(distance) > 0) {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Car, CreditCard, Clock, MapPin, Plus, LogOut, Zap } from 'lucide-react';
+import NearbyTolls from '@/components/NearbyTolls';
 
 interface Booking {
   id: string;
@@ -24,6 +24,7 @@ const DriverDashboard = () => {
   const navigate = useNavigate();
   const [addAmount, setAddAmount] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [showNearbyTolls, setShowNearbyTolls] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== 'driver') {
@@ -53,6 +54,11 @@ const DriverDashboard = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleSelectToll = (tollId: string) => {
+    // Navigate to booking page with pre-selected toll
+    navigate(`/book-express?toll=${tollId}`);
   };
 
   const handleLogout = () => {
@@ -151,7 +157,11 @@ const DriverDashboard = () => {
                   <Zap className="h-4 w-4 mr-2" />
                   Book Express Lane
                 </Button>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setShowNearbyTolls(true)}
+                >
                   <MapPin className="h-4 w-4 mr-2" />
                   Find Nearby Tolls
                 </Button>
@@ -243,6 +253,14 @@ const DriverDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Nearby Tolls Modal */}
+      {showNearbyTolls && (
+        <NearbyTolls 
+          onClose={() => setShowNearbyTolls(false)}
+          onSelectToll={handleSelectToll}
+        />
+      )}
     </div>
   );
 };
