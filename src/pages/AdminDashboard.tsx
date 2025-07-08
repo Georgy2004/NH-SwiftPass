@@ -36,41 +36,78 @@ const AdminDashboard = () => {
   // Function to check and update expired bookings
   const checkAndUpdateExpiredBookings = () => {
     const currentTime = new Date();
+    console.log('Admin: Checking expired bookings at:', currentTime.toLocaleString());
     
     setBookings(prevBookings => {
       const updatedBookings = prevBookings.map(booking => {
         if (booking.status === 'active' && booking.timeSlot) {
-          // Parse time slot (e.g., "10:25-10:35")
-          const timeSlotEnd = booking.timeSlot.split('-')[1];
-          const [hours, minutes] = timeSlotEnd.split(':').map(Number);
+          console.log(`Admin: Checking booking ${booking.id}: ${booking.timeSlot}`);
           
-          // Create end time for today
-          const endTime = new Date();
-          endTime.setHours(hours, minutes, 0, 0);
+          // Parse time slot (e.g., "10:25pm-10:35pm" or "22:25-22:35")
+          const timeSlotEnd = booking.timeSlot.split('-')[1];
+          console.log('Admin: Time slot end:', timeSlotEnd);
+          
+          // Handle both 12-hour (with am/pm) and 24-hour formats
+          let endTime = new Date();
+          
+          if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
+            // 12-hour format with am/pm
+            const timeStr = timeSlotEnd.trim();
+            const isPM = timeStr.includes('pm');
+            const timeWithoutAmPm = timeStr.replace(/[ap]m/i, '');
+            const [hours, minutes] = timeWithoutAmPm.split(':').map(Number);
+            
+            let adjustedHours = hours;
+            if (isPM && hours !== 12) {
+              adjustedHours = hours + 12;
+            } else if (!isPM && hours === 12) {
+              adjustedHours = 0;
+            }
+            
+            endTime.setHours(adjustedHours, minutes, 0, 0);
+          } else {
+            // 24-hour format
+            const [hours, minutes] = timeSlotEnd.split(':').map(Number);
+            endTime.setHours(hours, minutes, 0, 0);
+          }
+          
+          console.log('Admin: Parsed end time:', endTime.toLocaleString());
+          console.log('Admin: Current time:', currentTime.toLocaleString());
+          console.log('Admin: Is expired?', currentTime > endTime);
           
           // If current time exceeds the end time, mark as expired
           if (currentTime > endTime) {
+            console.log(`Admin: Marking booking ${booking.id} as expired`);
             return { ...booking, status: 'expired' };
           }
         }
         return booking;
       });
       
-      // Update localStorage with the new booking status
-      const savedBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
-      const allBookings = savedBookings.map((savedBooking: any) => {
-        const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
-        return updatedBooking || savedBooking;
-      });
-      localStorage.setItem('admin_bookings', JSON.stringify(allBookings));
+      // Check if any bookings were updated
+      const hasChanges = updatedBookings.some((booking, index) => 
+        booking.status !== prevBookings[index]?.status
+      );
       
-      // Also update driver bookings
-      const driverBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
-      const updatedDriverBookings = driverBookings.map((driverBooking: any) => {
-        const updatedBooking = updatedBookings.find(b => b.id === driverBooking.id);
-        return updatedBooking ? { ...driverBooking, status: updatedBooking.status } : driverBooking;
-      });
-      localStorage.setItem('driver_bookings', JSON.stringify(updatedDriverBookings));
+      if (hasChanges) {
+        console.log('Admin: Updating localStorage with expired bookings');
+        
+        // Update localStorage with the new booking status
+        const savedBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
+        const allBookings = savedBookings.map((savedBooking: any) => {
+          const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
+          return updatedBooking || savedBooking;
+        });
+        localStorage.setItem('admin_bookings', JSON.stringify(allBookings));
+        
+        // Also update driver bookings
+        const driverBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
+        const updatedDriverBookings = driverBookings.map((driverBooking: any) => {
+          const updatedBooking = updatedBookings.find(b => b.id === driverBooking.id);
+          return updatedBooking ? { ...driverBooking, status: updatedBooking.status } : driverBooking;
+        });
+        localStorage.setItem('driver_bookings', JSON.stringify(updatedDriverBookings));
+      }
       
       return updatedBookings;
     });
@@ -93,8 +130,8 @@ const AdminDashboard = () => {
     // Check for expired bookings immediately
     checkAndUpdateExpiredBookings();
     
-    // Set up interval to check for expired bookings every 30 seconds
-    const interval = setInterval(checkAndUpdateExpiredBookings, 30000);
+    // Set up interval to check for expired bookings every 10 seconds (more frequent for testing)
+    const interval = setInterval(checkAndUpdateExpiredBookings, 10000);
     
     return () => clearInterval(interval);
   }, [user, navigate]);
@@ -271,6 +308,7 @@ const AdminDashboard = () => {
                         <h4 className="font-medium">{booking.tollName}</h4>
                         <Badge 
                           variant={booking.status === 'active' ? 'default' : 'secondary'}
+                          className={booking.status === 'expired' ? 'bg-red-500 text-white' : ''}
                         >
                           {booking.status.toUpperCase()}
                         </Badge>
@@ -328,7 +366,7 @@ const AdminDashboard = () => {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );
