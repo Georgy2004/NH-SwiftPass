@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,81 +10,97 @@ import { ArrowLeft, CreditCard, Zap, Plus } from 'lucide-react';
 
 interface Transaction {
   id: string;
-  type: 'booking' | 'balance_add';
-  tollName?: string;
+  type: 'booking_payment' | 'account_topup' | 'refund' | 'fine';
   amount: number;
-  status: 'completed' | 'refunded' | 'pending';
-  date: string;
-  timeSlot?: string;
   description: string;
+  created_at: string;
+  booking_id?: string;
 }
 
 const TransactionHistory = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
 
   useEffect(() => {
-    if (!user || user.role !== 'driver') {
+    if (!loading && (!user || user.role !== 'driver')) {
       navigate('/login');
       return;
     }
 
-    // Load transactions from localStorage (bookings + balance additions)
-    const bookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
-    const userBookings = bookings.filter((booking: any) => booking.driverId === user.id);
-    
-    // Create transaction list from bookings
-    const bookingTransactions: Transaction[] = userBookings.map((booking: any) => ({
-      id: booking.id,
-      type: 'booking',
-      tollName: booking.tollName,
-      amount: booking.amount,
-      status: booking.status === 'completed' ? 'completed' : 
-              booking.status === 'expired' ? 'completed' : 'pending',
-      date: booking.createdAt,
-      timeSlot: booking.timeSlot,
-      description: `Express lane booking for ${booking.tollName}`
-    }));
+    if (user) {
+      fetchTransactions();
+    }
+  }, [user, loading, navigate]);
 
-    // Add mock balance addition transactions (in real app, these would come from backend)
-    const balanceTransactions: Transaction[] = [
-      {
-        id: 'bal_1',
-        type: 'balance_add',
-        amount: 500,
-        status: 'completed',
-        date: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        description: 'Money added to account'
-      },
-      {
-        id: 'bal_2',
-        type: 'balance_add',
-        amount: 1000,
-        status: 'completed',
-        date: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-        description: 'Money added to account'
+  const fetchTransactions = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingTransactions(true);
+      const { data: transactionsData, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        return;
       }
-    ];
 
-    // Combine and sort by date (newest first)
-    const allTransactions = [...bookingTransactions, ...balanceTransactions]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    setTransactions(allTransactions);
-  }, [user, navigate]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-500';
-      case 'refunded': return 'bg-blue-500';
-      case 'pending': return 'bg-yellow-500';
-      default: return 'bg-gray-500';
+      setTransactions(transactionsData || []);
+    } catch (error) {
+      console.error('Error in fetchTransactions:', error);
+    } finally {
+      setLoadingTransactions(false);
     }
   };
 
   const getTransactionIcon = (type: string) => {
-    return type === 'booking' ? <Zap className="h-4 w-4" /> : <Plus className="h-4 w-4" />;
+    switch (type) {
+      case 'booking_payment': return <Zap className="h-4 w-4" />;
+      case 'account_topup': return <Plus className="h-4 w-4" />;
+      case 'refund': return <ArrowLeft className="h-4 w-4" />;
+      default: return <CreditCard className="h-4 w-4" />;
+    }
+  };
+
+  const getTransactionColor = (type: string) => {
+    switch (type) {
+      case 'booking_payment': return 'bg-blue-100 text-blue-600';
+      case 'account_topup': return 'bg-green-100 text-green-600';
+      case 'refund': return 'bg-yellow-100 text-yellow-600';
+      case 'fine': return 'bg-red-100 text-red-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getAmountColor = (type: string) => {
+    switch (type) {
+      case 'booking_payment':
+      case 'fine':
+        return 'text-red-600';
+      case 'account_topup':
+      case 'refund':
+        return 'text-green-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  const getAmountPrefix = (type: string) => {
+    switch (type) {
+      case 'booking_payment':
+      case 'fine':
+        return '-';
+      case 'account_topup':
+      case 'refund':
+        return '+';
+      default:
+        return '';
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -95,6 +112,17 @@ const TransactionHistory = () => {
       minute: '2-digit'
     });
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-highway-blue mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading transactions...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) return null;
 
@@ -132,7 +160,12 @@ const TransactionHistory = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {transactions.length === 0 ? (
+            {loadingTransactions ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-highway-blue mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading transactions...</p>
+              </div>
+            ) : transactions.length === 0 ? (
               <div className="text-center py-8">
                 <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-600 mb-2">No Transactions Yet</h3>
@@ -154,26 +187,23 @@ const TransactionHistory = () => {
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        transaction.type === 'booking' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getTransactionColor(transaction.type)}`}>
                         {getTransactionIcon(transaction.type)}
                       </div>
                       <div>
                         <h4 className="font-medium">{transaction.description}</h4>
                         <p className="text-sm text-gray-600">
-                          {formatDate(transaction.date)}
-                          {transaction.timeSlot && ` • ${transaction.timeSlot}`}
+                          {formatDate(transaction.created_at)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex items-center space-x-3">
                       <div>
-                        <div className={`font-medium ${transaction.type === 'booking' ? 'text-red-600' : 'text-green-600'}`}>
-                          {transaction.type === 'booking' ? '-' : '+'}₹{transaction.amount}
+                        <div className={`font-medium ${getAmountColor(transaction.type)}`}>
+                          {getAmountPrefix(transaction.type)}₹{transaction.amount}
                         </div>
-                        <Badge variant={transaction.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                          {transaction.status.toUpperCase()}
+                        <Badge variant="default" className="text-xs">
+                          {transaction.type.replace('_', ' ').toUpperCase()}
                         </Badge>
                       </div>
                     </div>

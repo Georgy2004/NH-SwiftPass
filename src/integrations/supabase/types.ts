@@ -14,16 +14,186 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          amount: number
+          booking_date: string
+          created_at: string | null
+          distance_from_toll: number
+          id: string
+          status: Database["public"]["Enums"]["booking_status"] | null
+          time_slot: string
+          toll_booth_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_date: string
+          created_at?: string | null
+          distance_from_toll: number
+          id?: string
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          time_slot: string
+          toll_booth_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_date?: string
+          created_at?: string | null
+          distance_from_toll?: number
+          id?: string
+          status?: Database["public"]["Enums"]["booking_status"] | null
+          time_slot?: string
+          toll_booth_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_toll_booth_id_fkey"
+            columns: ["toll_booth_id"]
+            isOneToOne: false
+            referencedRelation: "toll_booths"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          balance: number | null
+          created_at: string | null
+          email: string
+          id: string
+          license_plate: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          balance?: number | null
+          created_at?: string | null
+          email: string
+          id: string
+          license_plate?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          balance?: number | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          license_plate?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      toll_booths: {
+        Row: {
+          created_at: string | null
+          express_lane_fee: number
+          highway: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          express_lane_fee?: number
+          highway: string
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          express_lane_fee?: number
+          highway?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          type?: Database["public"]["Enums"]["transaction_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_user_balance: {
+        Args: {
+          user_uuid: string
+          amount_change: number
+          transaction_description?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      booking_status: "confirmed" | "completed" | "cancelled" | "refunded"
+      transaction_type: "booking_payment" | "account_topup" | "refund" | "fine"
+      user_role: "admin" | "driver"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +320,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      booking_status: ["confirmed", "completed", "cancelled", "refunded"],
+      transaction_type: ["booking_payment", "account_topup", "refund", "fine"],
+      user_role: ["admin", "driver"],
+    },
   },
 } as const

@@ -1,6 +1,8 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,122 +14,73 @@ import NearbyTolls from '@/components/NearbyTolls';
 
 interface Booking {
   id: string;
-  tollName: string;
-  timeSlot: string;
+  toll_booth_id: string;
+  toll_name: string;
+  time_slot: string;
   amount: number;
-  status: 'active' | 'completed' | 'expired';
-  createdAt: string;
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded';
+  created_at: string;
+  booking_date: string;
 }
 
 const DriverDashboard = () => {
-  const { user, logout, updateBalance } = useAuth();
+  const { user, logout, updateBalance, loading } = useAuth();
   const navigate = useNavigate();
   const [addAmount, setAddAmount] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
-
-  // Function to check and update expired bookings
-  const checkAndUpdateExpiredBookings = () => {
-    const currentTime = new Date();
-    console.log('Checking expired bookings at:', currentTime.toLocaleString());
-    
-    setBookings(prevBookings => {
-      const updatedBookings = prevBookings.map(booking => {
-        if (booking.status === 'active' && booking.timeSlot) {
-          console.log(`Checking booking ${booking.id}: ${booking.timeSlot}`);
-          
-          // Parse the creation date of the booking
-          const bookingDate = new Date(booking.createdAt);
-          
-          // Parse time slot (e.g., "10:25pm-10:35pm" or "22:25-22:35")
-          const timeSlotEnd = booking.timeSlot.split('-')[1];
-          console.log('Time slot end:', timeSlotEnd);
-          
-          // Create end time using the booking date (not today's date)
-          let endTime = new Date(bookingDate);
-          
-          if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
-            // 12-hour format with am/pm
-            const timeStr = timeSlotEnd.trim();
-            const isPM = timeStr.includes('pm');
-            const timeWithoutAmPm = timeStr.replace(/[ap]m/i, '');
-            const [hours, minutes] = timeWithoutAmPm.split(':').map(Number);
-            
-            let adjustedHours = hours;
-            if (isPM && hours !== 12) {
-              adjustedHours = hours + 12;
-            } else if (!isPM && hours === 12) {
-              adjustedHours = 0;
-            }
-            
-            endTime.setHours(adjustedHours, minutes, 0, 0);
-          } else {
-            // 24-hour format
-            const [hours, minutes] = timeSlotEnd.split(':').map(Number);
-            endTime.setHours(hours, minutes, 0, 0);
-          }
-          
-          console.log('Parsed end time:', endTime.toLocaleString());
-          console.log('Current time:', currentTime.toLocaleString());
-          console.log('Is expired?', currentTime > endTime);
-          
-          // If current time exceeds the end time, mark as expired
-          if (currentTime > endTime) {
-            console.log(`Marking booking ${booking.id} as expired`);
-            return { ...booking, status: 'expired' as const };
-          }
-        }
-        return booking;
-      });
-      
-      // Check if any bookings were updated
-      const hasChanges = updatedBookings.some((booking, index) => 
-        booking.status !== prevBookings[index]?.status
-      );
-      
-      if (hasChanges) {
-        console.log('Updating localStorage with expired bookings');
-        
-        // Update localStorage with the new booking status
-        const savedBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
-        const allBookings = savedBookings.map((savedBooking: any) => {
-          const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
-          return updatedBooking || savedBooking;
-        });
-        localStorage.setItem('driver_bookings', JSON.stringify(allBookings));
-        
-        // Also update admin bookings
-        const adminBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
-        const updatedAdminBookings = adminBookings.map((adminBooking: any) => {
-          const updatedBooking = updatedBookings.find(b => b.id === adminBooking.id);
-          return updatedBooking ? { ...adminBooking, status: updatedBooking.status } : adminBooking;
-        });
-        localStorage.setItem('admin_bookings', JSON.stringify(updatedAdminBookings));
-      }
-      
-      return updatedBookings;
-    });
-  };
+  const [loadingBookings, setLoadingBookings] = useState(true);
 
   useEffect(() => {
-    if (!user || user.role !== 'driver') {
+    if (!loading && (!user || user.role !== 'driver')) {
       navigate('/login');
       return;
     }
 
-    // Load bookings from localStorage
-    const savedBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
-    const userBookings = savedBookings.filter((booking: any) => booking.driverId === user.id);
-    setBookings(userBookings);
-    
-    // Check for expired bookings immediately
-    checkAndUpdateExpiredBookings();
-    
-    // Set up interval to check for expired bookings every 10 seconds (more frequent for testing)
-    const interval = setInterval(checkAndUpdateExpiredBookings, 10000);
-    
-    return () => clearInterval(interval);
-  }, [user, navigate]);
+    if (user) {
+      fetchBookings();
+    }
+  }, [user, loading, navigate]);
+
+  const fetchBookings = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingBookings(true);
+      const { data: bookingsData, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          toll_booths (
+            name
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        return;
+      }
+
+      const formattedBookings = bookingsData?.map(booking => ({
+        id: booking.id,
+        toll_booth_id: booking.toll_booth_id,
+        toll_name: booking.toll_booths?.name || 'Unknown Toll',
+        time_slot: booking.time_slot,
+        amount: booking.amount,
+        status: booking.status,
+        created_at: booking.created_at,
+        booking_date: booking.booking_date
+      })) || [];
+
+      setBookings(formattedBookings);
+    } catch (error) {
+      console.error('Error in fetchBookings:', error);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
 
   const handleAddBalance = () => {
     const amount = parseFloat(addAmount);
@@ -148,7 +101,6 @@ const DriverDashboard = () => {
   };
 
   const handleSelectToll = (tollId: string) => {
-    // Navigate to booking page with pre-selected toll
     navigate(`/book-express?toll=${tollId}`);
   };
 
@@ -159,12 +111,24 @@ const DriverDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'completed': return 'bg-blue-500';
-      case 'expired': return 'bg-red-500';
+      case 'confirmed': return 'bg-blue-500';
+      case 'completed': return 'bg-green-500';
+      case 'cancelled': return 'bg-red-500';
+      case 'refunded': return 'bg-yellow-500';
       default: return 'bg-gray-500';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-highway-blue mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) return null;
 
@@ -224,7 +188,7 @@ const DriverDashboard = () => {
                   <div className="text-sm text-gray-600 space-y-1">
                     <div className="flex justify-between">
                       <span>License Plate:</span>
-                      <span className="font-medium">{user.licensePlate}</span>
+                      <span className="font-medium">{user.licensePlate || 'Not set'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Account Type:</span>
@@ -278,7 +242,12 @@ const DriverDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {bookings.length === 0 ? (
+                {loadingBookings ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-highway-blue mx-auto"></div>
+                    <p className="mt-2 text-gray-600">Loading bookings...</p>
+                  </div>
+                ) : bookings.length === 0 ? (
                   <div className="text-center py-8">
                     <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-600 mb-2">No Bookings Yet</h3>
@@ -302,13 +271,16 @@ const DriverDashboard = () => {
                         <div className="flex items-center space-x-4">
                           <div className={`w-3 h-3 rounded-full ${getStatusColor(booking.status)}`}></div>
                           <div>
-                            <h4 className="font-medium">{booking.tollName}</h4>
-                            <p className="text-sm text-gray-600">{booking.timeSlot}</p>
+                            <h4 className="font-medium">{booking.toll_name}</h4>
+                            <p className="text-sm text-gray-600">{booking.time_slot}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(booking.booking_date).toLocaleDateString()}
+                            </p>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-medium">₹{booking.amount}</div>
-                          <Badge variant={booking.status === 'active' ? 'default' : 'secondary'}>
+                          <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
                             {booking.status.toUpperCase()}
                           </Badge>
                         </div>
