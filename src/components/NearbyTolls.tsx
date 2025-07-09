@@ -117,9 +117,9 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
           distance: calculateDistance(latitude, longitude, toll.latitude, toll.longitude)
         }));
 
-        // Sort by distance and filter tolls within 50km radius
+        // Sort by distance and filter tolls within 20km radius (updated from 50km)
         const sortedTolls = tollsWithDistance
-          .filter(toll => toll.distance! <= 50)
+          .filter(toll => toll.distance! <= 20)
           .sort((a, b) => a.distance! - b.distance!);
 
         setNearbyTolls(sortedTolls);
@@ -127,7 +127,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
 
         toast({
           title: "Location Found",
-          description: `Found ${sortedTolls.length} toll booths within 50km`,
+          description: `Found ${sortedTolls.length} toll booths within 20km`,
         });
       },
       (error) => {
@@ -160,7 +160,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div>
               <CardTitle className="text-highway-blue">Nearby Toll Booths</CardTitle>
               <CardDescription>
-                Toll booths within 50km of your current location
+                Toll booths within 20km of your current location
               </CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose}>
@@ -194,7 +194,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-600 mb-2">No Nearby Tolls</h3>
-              <p className="text-gray-500">No toll booths found within 50km of your location</p>
+              <p className="text-gray-500">No toll booths found within 20km of your location</p>
             </div>
           )}
 
