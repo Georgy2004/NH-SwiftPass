@@ -42,12 +42,15 @@ const AdminDashboard = () => {
         if (booking.status === 'active' && booking.timeSlot) {
           console.log(`Admin: Checking booking ${booking.id}: ${booking.timeSlot}`);
           
+          // Parse the creation date of the booking
+          const bookingDate = new Date(booking.createdAt);
+          
           // Parse time slot (e.g., "10:25pm-10:35pm" or "22:25-22:35")
           const timeSlotEnd = booking.timeSlot.split('-')[1];
           console.log('Admin: Time slot end:', timeSlotEnd);
           
-          // Handle both 12-hour (with am/pm) and 24-hour formats
-          let endTime = new Date();
+          // Create end time using the booking date (not today's date)
+          let endTime = new Date(bookingDate);
           
           if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
             // 12-hour format with am/pm
