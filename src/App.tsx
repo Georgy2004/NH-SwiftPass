@@ -11,6 +11,8 @@ import Register from "./pages/Register";
 import DriverDashboard from "./pages/DriverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import BookExpress from "./pages/BookExpress";
+import TransactionHistory from "./pages/TransactionHistory";
+import LearnMore from "./pages/LearnMore";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/driver" element={<DriverDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/book-express" element={<BookExpress />} />
+            <Route path="/transaction-history" element={<TransactionHistory />} />
+            <Route path="/learn-more" element={<LearnMore />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

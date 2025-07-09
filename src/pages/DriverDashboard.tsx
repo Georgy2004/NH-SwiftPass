@@ -256,7 +256,11 @@ const DriverDashboard = () => {
                   <MapPin className="h-4 w-4 mr-2" />
                   Find Nearby Tolls
                 </Button>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => navigate('/transaction-history')}
+                >
                   <CreditCard className="h-4 w-4 mr-2" />
                   Transaction History
                 </Button>
