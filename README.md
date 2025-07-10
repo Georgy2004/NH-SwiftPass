@@ -1,6 +1,6 @@
 Problem Statement:-
 
-Toll booths often cause significant time wastage due to congestion and inefficient collection methods. Despite the introduction of systems like FASTag, technical failures frequently lead to manual intervention and further delays. A major shortcoming is the absence of a pre-booking mechanism, which results in all vehicles being treated equally, regardless of urgency or planning. Moreover, current toll systems lack effective real-time vehicle verification, making it difficult to identify registered users accurately. Users who mistakenly enter the wrong lane after booking an express pass receive no refunds, which adds to user frustration. Additionally, there is no time-sensitive validation system to ensure that toll bookings are used within a specific window, reducing system effectiveness. Lastly, toll management systems underutilize modern technologies such as AI-powered cameras, missing out on opportunities to enhance traffic flow and enforce rules efficiently.
+Toll plazas on highways like NH66 often face heavy congestion, leading to time delays even with FASTag systems in place. To solve this, we propose a Smart Toll Express Booking System that allows users to pre-book access to a dedicated Express Lane within 5–10 km of the toll booth.The express lane will be monitored by AI cameras to detect unregistered vehicles, with fines for violations. Users who book but use the regular lane will receive a partial refund. This system aims to reduce waiting time, ensure faster traffic flow, and improve toll booth efficiency.
 
 Objective:-
 
