@@ -37,8 +37,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Clear any cached auth data on initialization
+  useEffect(() => {
+    const clearAuthCache = async () => {
+      try {
+        // Clear any potential cached auth data
+        localStorage.removeItem('supabase.auth.token');
+        sessionStorage.clear();
+      } catch (error) {
+        console.log('Cache clearing not needed:', error);
+      }
+    };
+    clearAuthCache();
+  }, []);
+
   // Fetch user profile from database
-  const fetchUserProfile = async (userId: string) => {
+  const fetchUserProfile = async (userId: string): Promise<AuthUser | null> => {
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -118,6 +132,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (data.user) {
         const userProfile = await fetchUserProfile(data.user.id);
+        if (!userProfile) {
+          // If profile doesn't exist, show specific error
+          toast({
+            title: "Profile Error",
+            description: "User profile not found. Please contact support.",
+            variant: "destructive",
+          });
+          return false;
+        }
         setUser(userProfile);
         setSession(data.session);
         return true;
@@ -126,6 +149,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } catch (error) {
       console.error('Login error:', error);
+      toast({
+        title: "Login Error",
+        description: "An unexpected error occurred during login.",
+        variant: "destructive",
+      });
       return false;
     } finally {
       setLoading(false);
@@ -151,25 +179,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Registration error:', error);
-        toast({
-          title: "Registration Failed",
-          description: error.message,
-          variant: "destructive",
-        });
+        
+        // Handle specific error cases
+        if (error.message.includes('User already registered')) {
+          toast({
+            title: "Registration Failed",
+            description: "An account with this email already exists. Please try logging in instead.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Registration Failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
         return false;
       }
 
       if (data.user) {
-        // The trigger will create the profile automatically
-        // Wait a moment then fetch the profile
+        // Wait a moment for the trigger to create the profile
         setTimeout(async () => {
           const userProfile = await fetchUserProfile(data.user!.id);
-          setUser(userProfile);
+          if (userProfile) {
+            setUser(userProfile);
+          }
         }, 1000);
         
         toast({
           title: "Registration Successful",
-          description: "Welcome to Highway Express! Please check your email to confirm your account.",
+          description: "Welcome to Highway Express! Your account has been created successfully.",
         });
         return true;
       }
@@ -177,6 +216,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } catch (error) {
       console.error('Registration error:', error);
+      toast({
+        title: "Registration Error",
+        description: "An unexpected error occurred during registration.",
+        variant: "destructive",
+      });
       return false;
     } finally {
       setLoading(false);
@@ -188,6 +232,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       setUser(null);
       setSession(null);
+      
+      // Clear any cached data
+      localStorage.removeItem('supabase.auth.token');
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
     } catch (error) {
       console.error('Logout error:', error);
     }
