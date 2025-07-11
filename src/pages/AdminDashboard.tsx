@@ -1,119 +1,45 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Driver {
   id: string;
   email: string;
-  licensePlate: string;
+  license_plate: string;
   balance: number;
 }
 
 interface Booking {
   id: string;
-  driverId: string;
-  tollName: string;
-  timeSlot: string;
+  user_id: string;
+  toll_booth: {
+    name: string;
+  };
+  time_slot: string;
   amount: number;
   status: string;
-  createdAt: string;
-  licensePlate: string;
+  created_at: string;
+  profiles: {
+    license_plate: string;
+  };
 }
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Function to check and update expired bookings
-  const checkAndUpdateExpiredBookings = () => {
-    const currentTime = new Date();
-    console.log('Admin: Checking expired bookings at:', currentTime.toLocaleString());
-    
-    setBookings(prevBookings => {
-      const updatedBookings = prevBookings.map(booking => {
-        if (booking.status === 'active' && booking.timeSlot) {
-          console.log(`Admin: Checking booking ${booking.id}: ${booking.timeSlot}`);
-          
-          // Parse the creation date of the booking
-          const bookingDate = new Date(booking.createdAt);
-          
-          // Parse time slot (e.g., "10:25pm-10:35pm" or "22:25-22:35")
-          const timeSlotEnd = booking.timeSlot.split('-')[1];
-          console.log('Admin: Time slot end:', timeSlotEnd);
-          
-          // Create end time using the booking date (not today's date)
-          let endTime = new Date(bookingDate);
-          
-          if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
-            // 12-hour format with am/pm
-            const timeStr = timeSlotEnd.trim();
-            const isPM = timeStr.includes('pm');
-            const timeWithoutAmPm = timeStr.replace(/[ap]m/i, '');
-            const [hours, minutes] = timeWithoutAmPm.split(':').map(Number);
-            
-            let adjustedHours = hours;
-            if (isPM && hours !== 12) {
-              adjustedHours = hours + 12;
-            } else if (!isPM && hours === 12) {
-              adjustedHours = 0;
-            }
-            
-            endTime.setHours(adjustedHours, minutes, 0, 0);
-          } else {
-            // 24-hour format
-            const [hours, minutes] = timeSlotEnd.split(':').map(Number);
-            endTime.setHours(hours, minutes, 0, 0);
-          }
-          
-          console.log('Admin: Parsed end time:', endTime.toLocaleString());
-          console.log('Admin: Current time:', currentTime.toLocaleString());
-          console.log('Admin: Is expired?', currentTime > endTime);
-          
-          // If current time exceeds the end time, mark as expired
-          if (currentTime > endTime) {
-            console.log(`Admin: Marking booking ${booking.id} as expired`);
-            return { ...booking, status: 'expired' };
-          }
-        }
-        return booking;
-      });
-      
-      // Check if any bookings were updated
-      const hasChanges = updatedBookings.some((booking, index) => 
-        booking.status !== prevBookings[index]?.status
-      );
-      
-      if (hasChanges) {
-        console.log('Admin: Updating localStorage with expired bookings');
-        
-        // Update localStorage with the new booking status
-        const savedBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
-        const allBookings = savedBookings.map((savedBooking: any) => {
-          const updatedBooking = updatedBookings.find(b => b.id === savedBooking.id);
-          return updatedBooking || savedBooking;
-        });
-        localStorage.setItem('admin_bookings', JSON.stringify(allBookings));
-        
-        // Also update driver bookings
-        const driverBookings = JSON.parse(localStorage.getItem('driver_bookings') || '[]');
-        const updatedDriverBookings = driverBookings.map((driverBooking: any) => {
-          const updatedBooking = updatedBookings.find(b => b.id === driverBooking.id);
-          return updatedBooking ? { ...driverBooking, status: updatedBooking.status } : driverBooking;
-        });
-        localStorage.setItem('driver_bookings', JSON.stringify(updatedDriverBookings));
-      }
-      
-      return updatedBookings;
-    });
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -121,22 +47,81 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Load drivers and bookings
-    const allUsers = JSON.parse(localStorage.getItem('toll_users') || '[]');
-    const driverUsers = allUsers.filter((u: any) => u.role === 'driver');
-    setDrivers(driverUsers);
-
-    const allBookings = JSON.parse(localStorage.getItem('admin_bookings') || '[]');
-    setBookings(allBookings);
-    
-    // Check for expired bookings immediately
-    checkAndUpdateExpiredBookings();
-    
-    // Set up interval to check for expired bookings every 10 seconds (more frequent for testing)
-    const interval = setInterval(checkAndUpdateExpiredBookings, 10000);
-    
-    return () => clearInterval(interval);
+    loadData();
   }, [user, navigate]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load drivers from Supabase
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, license_plate, balance')
+        .eq('role', 'driver');
+
+      if (profilesError) {
+        console.error('Error loading drivers:', profilesError);
+        toast({
+          title: "Error",
+          description: "Failed to load drivers data",
+          variant: "destructive",
+        });
+      } else {
+        setDrivers(profilesData || []);
+      }
+
+      // Load bookings from Supabase with toll booth and profile information
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          user_id,
+          time_slot,
+          amount,
+          status,
+          created_at,
+          toll_booths:toll_booth_id (
+            name
+          ),
+          profiles:user_id (
+            license_plate
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings data",
+          variant: "destructive",
+        });
+      } else {
+        // Transform the data to match the expected format
+        const transformedBookings = (bookingsData || []).map((booking: any) => ({
+          id: booking.id,
+          user_id: booking.user_id,
+          tollName: booking.toll_booths?.name || 'Unknown Toll',
+          timeSlot: booking.time_slot,
+          amount: booking.amount,
+          status: booking.status,
+          createdAt: booking.created_at,
+          licensePlate: booking.profiles?.license_plate || 'N/A'
+        }));
+        setBookings(transformedBookings);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -145,7 +130,7 @@ const AdminDashboard = () => {
 
   const filteredDrivers = drivers.filter(driver => 
     driver.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    driver.licensePlate.toLowerCase().includes(searchTerm.toLowerCase())
+    (driver.license_plate && driver.license_plate.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredBookings = bookings.filter(booking =>
@@ -155,12 +140,23 @@ const AdminDashboard = () => {
 
   const stats = {
     totalDrivers: drivers.length,
-    activeBookings: bookings.filter(b => b.status === 'active').length,
-    totalRevenue: bookings.reduce((sum, b) => sum + b.amount, 0),
+    activeBookings: bookings.filter(b => b.status === 'confirmed').length,
+    totalRevenue: bookings.reduce((sum, b) => sum + Number(b.amount), 0),
     completedBookings: bookings.filter(b => b.status === 'completed').length,
   };
 
   if (!user) return null;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-highway-blue mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
@@ -274,10 +270,10 @@ const AdminDashboard = () => {
                     >
                       <div>
                         <h4 className="font-medium">{driver.email}</h4>
-                        <p className="text-sm text-gray-600">{driver.licensePlate}</p>
+                        <p className="text-sm text-gray-600">{driver.license_plate || 'No license plate'}</p>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium text-green-600">₹{driver.balance?.toFixed(2)}</div>
+                        <div className="font-medium text-green-600">₹{Number(driver.balance || 0).toFixed(2)}</div>
                         <Badge variant="secondary">Active</Badge>
                       </div>
                     </div>
@@ -309,8 +305,8 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">{booking.tollName}</h4>
                         <Badge 
-                          variant={booking.status === 'active' ? 'default' : 'secondary'}
-                          className={booking.status === 'expired' ? 'bg-red-500 text-white' : ''}
+                          variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
+                          className={booking.status === 'completed' ? 'bg-green-500 text-white' : ''}
                         >
                           {booking.status.toUpperCase()}
                         </Badge>
