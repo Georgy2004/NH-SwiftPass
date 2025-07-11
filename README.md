@@ -1,6 +1,6 @@
 Problem Statement:-
 
-Toll plazas on highways like NH66 often face heavy congestion, leading to time delays even with FASTag systems in place. To solve this, we propose a Smart Toll Express Booking System that allows users to pre-book access to a dedicated Express Lane within 5–10 km of the toll booth.The express lane will be monitored by AI cameras to detect unregistered vehicles, with fines for violations. Users who book but use the regular lane will receive a partial refund. This system aims to reduce waiting time, ensure faster traffic flow, and improve toll booth efficiency.   
+Toll plazas on highways like NH66 often face heavy congestion, leading to time delays even with FASTag systems in place. To solve this, we propose a Smart Toll Express Booking System that allows users to pre-book access to a dedicated Express Lane within 5–10 km of the toll booth.The express lane will be monitored by AI cameras to detect unregistered vehicles, with fines for violations. Users who book but use the regular lane will receive a partial refund. This system aims to reduce waiting time, ensure faster traffic flow, and improve toll booth efficiency.    
 
 Objective:-
 
