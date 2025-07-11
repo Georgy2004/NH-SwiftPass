@@ -47,6 +47,8 @@ const DriverDashboard = () => {
 
     try {
       setLoadingBookings(true);
+      console.log('Fetching bookings for user:', user.id);
+
       const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select(`
@@ -60,8 +62,15 @@ const DriverDashboard = () => {
 
       if (error) {
         console.error('Error fetching bookings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings",
+          variant: "destructive",
+        });
         return;
       }
+
+      console.log('Fetched bookings data:', bookingsData);
 
       const formattedBookings = bookingsData?.map(booking => ({
         id: booking.id,
@@ -74,23 +83,56 @@ const DriverDashboard = () => {
         booking_date: booking.booking_date
       })) || [];
 
+      console.log('Formatted bookings:', formattedBookings);
       setBookings(formattedBookings);
     } catch (error) {
       console.error('Error in fetchBookings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load bookings",
+        variant: "destructive",
+      });
     } finally {
       setLoadingBookings(false);
     }
   };
 
-  const handleAddBalance = () => {
+  const handleAddBalance = async () => {
     const amount = parseFloat(addAmount);
-    if (amount && amount > 0) {
-      updateBalance(amount);
-      setAddAmount('');
-      toast({
-        title: "Balance Added",
-        description: `₹${amount} has been added to your account.`,
-      });
+    if (amount && amount > 0 && user) {
+      try {
+        // Update balance using Supabase function
+        const { data: result, error } = await supabase
+          .rpc('update_user_balance', {
+            user_uuid: user.id,
+            amount_change: amount,
+            transaction_description: 'Account top-up'
+          });
+
+        if (error || !result) {
+          toast({
+            title: "Error",
+            description: "Failed to add balance. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Update local balance
+        updateBalance(amount);
+        setAddAmount('');
+        toast({
+          title: "Balance Added",
+          description: `₹${amount} has been added to your account.`,
+        });
+      } catch (error) {
+        console.error('Error adding balance:', error);
+        toast({
+          title: "Error",
+          description: "Failed to add balance. Please try again.",
+          variant: "destructive",
+        });
+      }
     } else {
       toast({
         title: "Invalid Amount",
