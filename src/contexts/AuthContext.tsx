@@ -37,23 +37,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Clear any cached auth data on initialization
-  useEffect(() => {
-    const clearAuthCache = async () => {
-      try {
-        // Clear any potential cached auth data
-        localStorage.removeItem('supabase.auth.token');
-        sessionStorage.clear();
-      } catch (error) {
-        console.log('Cache clearing not needed:', error);
-      }
-    };
-    clearAuthCache();
-  }, []);
-
   // Fetch user profile from database
   const fetchUserProfile = async (userId: string): Promise<AuthUser | null> => {
     try {
+      console.log('Fetching profile for user:', userId);
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -65,6 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
+      console.log('Profile fetched successfully:', profile);
       return {
         id: profile.id,
         email: profile.email,
@@ -86,12 +74,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         
         if (session?.user) {
-          // Use setTimeout to prevent any potential recursion issues
+          // Use a small delay to ensure database consistency
           setTimeout(async () => {
             const userProfile = await fetchUserProfile(session.user.id);
             setUser(userProfile);
             setLoading(false);
-          }, 0);
+          }, 100);
         } else {
           setUser(null);
           setLoading(false);
@@ -137,15 +125,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           description: error.message,
           variant: "destructive",
         });
+        setLoading(false);
         return false;
       }
 
       if (data.user && data.session) {
         console.log('Login successful, user:', data.user.id);
-        // The onAuthStateChange will handle setting user and session
-        return true;
+        
+        // Wait for the profile to be fetched before resolving
+        const userProfile = await fetchUserProfile(data.user.id);
+        if (userProfile) {
+          setUser(userProfile);
+          setSession(data.session);
+          setLoading(false);
+          return true;
+        } else {
+          console.error('Failed to fetch user profile after login');
+          setLoading(false);
+          return false;
+        }
       }
       
+      setLoading(false);
       return false;
     } catch (error) {
       console.error('Login error:', error);
@@ -154,9 +155,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "An unexpected error occurred during login.",
         variant: "destructive",
       });
+      setLoading(false);
       return false;
-    } finally {
-      // Don't set loading to false here, let onAuthStateChange handle it
     }
   };
 
@@ -221,19 +221,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await supabase.auth.signOut();
+      console.log('Starting logout process');
+      setLoading(true);
+      
+      // Clear state immediately
       setUser(null);
       setSession(null);
+      
+      // Perform logout
+      await supabase.auth.signOut();
       
       // Clear any cached data
       localStorage.removeItem('supabase.auth.token');
       
+      console.log('Logout completed');
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out.",
       });
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -15,23 +15,37 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'driver'>('driver');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  if (user) {
+    navigate(user.role === 'admin' ? '/admin' : '/driver');
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (loading) return; // Prevent double submission
+    
     setLoading(true);
 
     try {
+      console.log('Login form submitted for:', email);
       const success = await login(email, password);
+      
       if (success) {
+        console.log('Login successful, navigating to dashboard');
         toast({
           title: "Login Successful",
           description: `Welcome back! Redirecting to ${role} dashboard.`,
         });
         
-        // Navigate based on role
-        navigate(role === 'admin' ? '/admin' : '/driver');
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          navigate(role === 'admin' ? '/admin' : '/driver');
+        }, 500);
       } else {
         toast({
           title: "Login Failed",
@@ -40,6 +54,7 @@ const Login = () => {
         });
       }
     } catch (error) {
+      console.error('Login form error:', error);
       toast({
         title: "Error",
         description: "An error occurred during login. Please try again.",
@@ -98,6 +113,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -110,6 +126,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
 
