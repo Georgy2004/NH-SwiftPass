@@ -86,25 +86,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         
         if (session?.user) {
-          // Fetch user profile data
-          const userProfile = await fetchUserProfile(session.user.id);
-          setUser(userProfile);
+          // Use setTimeout to prevent any potential recursion issues
+          setTimeout(async () => {
+            const userProfile = await fetchUserProfile(session.user.id);
+            setUser(userProfile);
+            setLoading(false);
+          }, 0);
         } else {
           setUser(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
     // Check for existing session
     const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const userProfile = await fetchUserProfile(session.user.id);
-        setUser(userProfile);
-        setSession(session);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userProfile = await fetchUserProfile(session.user.id);
+          setUser(userProfile);
+          setSession(session);
+        }
+      } catch (error) {
+        console.error('Error getting initial session:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     getInitialSession();
@@ -115,6 +123,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setLoading(true);
+      console.log('Attempting login for:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -130,19 +140,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      if (data.user) {
-        const userProfile = await fetchUserProfile(data.user.id);
-        if (!userProfile) {
-          // If profile doesn't exist, show specific error
-          toast({
-            title: "Profile Error",
-            description: "User profile not found. Please contact support.",
-            variant: "destructive",
-          });
-          return false;
-        }
-        setUser(userProfile);
-        setSession(data.session);
+      if (data.user && data.session) {
+        console.log('Login successful, user:', data.user.id);
+        // The onAuthStateChange will handle setting user and session
         return true;
       }
       
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return false;
     } finally {
-      setLoading(false);
+      // Don't set loading to false here, let onAuthStateChange handle it
     }
   };
 
@@ -198,14 +198,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        // Wait a moment for the trigger to create the profile
-        setTimeout(async () => {
-          const userProfile = await fetchUserProfile(data.user!.id);
-          if (userProfile) {
-            setUser(userProfile);
-          }
-        }, 1000);
-        
         toast({
           title: "Registration Successful",
           description: "Welcome to Highway Express! Your account has been created successfully.",
