@@ -20,16 +20,12 @@ interface Driver {
 interface Booking {
   id: string;
   user_id: string;
-  toll_booth: {
-    name: string;
-  };
-  time_slot: string;
+  tollName: string;
+  timeSlot: string;
   amount: number;
   status: string;
-  created_at: string;
-  profiles: {
-    license_plate: string;
-  };
+  createdAt: string;
+  licensePlate: string;
 }
 
 const AdminDashboard = () => {
@@ -99,7 +95,7 @@ const AdminDashboard = () => {
         });
       } else {
         // Transform the data to match the expected format
-        const transformedBookings = (bookingsData || []).map((booking: any) => ({
+        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
           id: booking.id,
           user_id: booking.user_id,
           tollName: booking.toll_booths?.name || 'Unknown Toll',
