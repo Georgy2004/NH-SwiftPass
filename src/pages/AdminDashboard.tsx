@@ -37,59 +37,6 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const checkAndUpdateExpiredBookings = async () => {
-    const currentTime = new Date();
-    
-    // Find bookings that should be expired
-    const expiredBookings = bookings.filter(booking => {
-      if (booking.status !== 'confirmed') return false;
-      
-      const bookingDate = new Date(booking.createdAt);
-      const timeSlotEnd = booking.timeSlot.split('-')[1];
-      let endTime = new Date(bookingDate);
-      
-      // Parse time (same logic as local storage version)
-      if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
-        const timeStr = timeSlotEnd.trim();
-        const isPM = timeStr.includes('pm');
-        const timeWithoutAmPm = timeStr.replace(/[ap]m/i, '');
-        const [hours, minutes] = timeWithoutAmPm.split(':').map(Number);
-        
-        let adjustedHours = hours;
-        if (isPM && hours !== 12) adjustedHours = hours + 12;
-        else if (!isPM && hours === 12) adjustedHours = 0;
-        
-        endTime.setHours(adjustedHours, minutes, 0, 0);
-      } else {
-        const [hours, minutes] = timeSlotEnd.split(':').map(Number);
-        endTime.setHours(hours, minutes, 0, 0);
-      }
-      
-      return currentTime > endTime;
-    });
-
-    // Update expired bookings in Supabase
-    if (expiredBookings.length > 0) {
-      try {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ status: 'expired' })
-          .in('id', expiredBookings.map(b => b.id));
-        
-        if (error) {
-          console.error('Error updating expired bookings:', error);
-          toast({
-            title: "Error",
-            description: "Failed to update expired bookings",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('Error in expiration update:', error);
-      }
-    }
-  };
-
   useEffect(() => {
     if (!user || user.role !== 'admin') {
       navigate('/login');
@@ -98,11 +45,7 @@ const AdminDashboard = () => {
 
     loadData();
     setupRealtimeUpdates();
-    
-    // Add expiration check interval
-    const interval = setInterval(checkAndUpdateExpiredBookings, 10000);
-    return () => clearInterval(interval);
-  }, [user, navigate, bookings]);
+  }, [user, navigate]);
 
   const setupRealtimeUpdates = () => {
     const channel = supabase
@@ -110,12 +53,13 @@ const AdminDashboard = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'bookings'
         },
-        () => {
-          loadData();
+        (payload) => {
+          console.log('Booking updated in admin dashboard:', payload);
+          loadData(); // Refresh all data when there's an update
         }
       )
       .subscribe();
@@ -135,9 +79,18 @@ const AdminDashboard = () => {
         .select('id, email, license_plate, balance')
         .eq('role', 'driver');
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error loading drivers:', profilesError);
+        toast({
+          title: "Error",
+          description: "Failed to load drivers data",
+          variant: "destructive",
+        });
+      } else {
+        setDrivers(profilesData || []);
+      }
 
-      // Load bookings from Supabase
+      // Load bookings from Supabase with toll booth and profile information
       const { data: bookingsData, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -157,23 +110,28 @@ const AdminDashboard = () => {
         `)
         .order('created_at', { ascending: false });
 
-      if (bookingsError) throw bookingsError;
-
-      setDrivers(profilesData || []);
-      
-      const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
-        id: booking.id,
-        user_id: booking.user_id,
-        tollName: booking.toll_booths?.name || 'Unknown Toll',
-        timeSlot: booking.time_slot,
-        amount: booking.amount,
-        status: booking.status,
-        createdAt: booking.created_at,
-        licensePlate: booking.profiles?.license_plate || 'N/A',
-        bookingDate: booking.booking_date
-      }));
-
-      setBookings(transformedBookings);
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings data",
+          variant: "destructive",
+        });
+      } else {
+        // Transform the data to match the expected format
+        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
+          id: booking.id,
+          user_id: booking.user_id,
+          tollName: booking.toll_booths?.name || 'Unknown Toll',
+          timeSlot: booking.time_slot,
+          amount: booking.amount,
+          status: booking.status,
+          createdAt: booking.created_at,
+          licensePlate: booking.profiles?.license_plate || 'N/A',
+          bookingDate: booking.booking_date
+        }));
+        setBookings(transformedBookings);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
