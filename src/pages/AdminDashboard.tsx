@@ -37,20 +37,30 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const checkAndUpdateExpiredBookings = async () => {
+  const checkAndForceUpdateExpiredBookings = async () => {
     try {
-      const { data, error } = await supabase.rpc('update_expired_bookings');
+      // First update any expired bookings
+      const { error: updateError } = await supabase.rpc('update_expired_bookings');
       
-      if (error) {
-        console.error('Error updating expired bookings:', error);
+      if (updateError) {
+        console.error('Error updating expired bookings:', updateError);
         toast({
           title: "Error",
           description: "Failed to update booking statuses",
           variant: "destructive",
         });
+        return;
       }
+      
+      // Then force refresh all data
+      await loadData();
     } catch (error) {
-      console.error('Error checking expired bookings:', error);
+      console.error('Error force refreshing bookings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data",
+        variant: "destructive",
+      });
     }
   };
 
@@ -65,14 +75,7 @@ const AdminDashboard = () => {
         .eq('role', 'driver');
 
       if (profilesError) {
-        console.error('Error loading drivers:', profilesError);
-        toast({
-          title: "Error",
-          description: "Failed to load drivers data",
-          variant: "destructive",
-        });
-      } else {
-        setDrivers(profilesData || []);
+        throw profilesError;
       }
 
       // Load bookings from Supabase with toll booth and profile information
@@ -96,27 +99,24 @@ const AdminDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (bookingsError) {
-        console.error('Error loading bookings:', bookingsError);
-        toast({
-          title: "Error",
-          description: "Failed to load bookings data",
-          variant: "destructive",
-        });
-      } else {
-        // Transform the data to match the expected format
-        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
-          id: booking.id,
-          user_id: booking.user_id,
-          tollName: booking.toll_booths?.name || 'Unknown Toll',
-          timeSlot: booking.time_slot,
-          amount: booking.amount,
-          status: booking.status,
-          createdAt: booking.created_at,
-          licensePlate: booking.profiles?.license_plate || 'N/A',
-          bookingDate: booking.booking_date
-        }));
-        setBookings(transformedBookings);
+        throw bookingsError;
       }
+
+      // Transform the data to match the expected format
+      const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
+        id: booking.id,
+        user_id: booking.user_id,
+        tollName: booking.toll_booths?.name || 'Unknown Toll',
+        timeSlot: booking.time_slot,
+        amount: booking.amount,
+        status: booking.status,
+        createdAt: booking.created_at,
+        licensePlate: booking.profiles?.license_plate || 'N/A',
+        bookingDate: booking.booking_date
+      }));
+
+      setDrivers(profilesData || []);
+      setBookings(transformedBookings);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -140,7 +140,7 @@ const AdminDashboard = () => {
           table: 'bookings'
         },
         () => {
-          loadData(); // Refresh all data when there's an update
+          loadData();
         }
       )
       .subscribe();
@@ -158,10 +158,10 @@ const AdminDashboard = () => {
 
     loadData();
     setupRealtimeUpdates();
-    checkAndUpdateExpiredBookings();
+    checkAndForceUpdateExpiredBookings();
     
-    // Set up interval to check for expired bookings every minute
-    const interval = setInterval(checkAndUpdateExpiredBookings, 60000);
+    // Check every 30 seconds for expired bookings
+    const interval = setInterval(checkAndForceUpdateExpiredBookings, 30000);
     
     return () => {
       clearInterval(interval);
