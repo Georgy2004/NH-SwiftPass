@@ -23,49 +23,26 @@ interface Booking {
 }
 
 const DriverDashboard = () => {
-  const { user, logout, updateBalance, loading: authLoading } = useAuth();
+  const { user, logout, updateBalance, loading } = useAuth();
   const navigate = useNavigate();
   const [addAmount, setAddAmount] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  useEffect(() => {
-    if (!authLoading && (!user || user.role !== 'driver')) {
-      navigate('/login');
-      return;
+  const checkAndUpdateExpiredBookings = async () => {
+    try {
+      const { data, error } = await supabase.rpc('update_expired_bookings');
+      
+      if (error) {
+        console.error('Error updating expired bookings:', error);
+      } else {
+        // Refresh bookings after update
+        fetchBookings();
+      }
+    } catch (error) {
+      console.error('Error checking expired bookings:', error);
     }
-
-    if (user) {
-      fetchBookings();
-      const unsubscribe = setupRealtimeUpdates();
-      return () => unsubscribe();
-    }
-  }, [user, authLoading, navigate]);
-
-  const setupRealtimeUpdates = () => {
-    if (!user) return () => {};
-
-    const channel = supabase
-      .channel('driver-booking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bookings',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Booking update received:', payload);
-          fetchBookings();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   };
 
   const fetchBookings = async () => {
@@ -73,8 +50,7 @@ const DriverDashboard = () => {
 
     try {
       setLoadingBookings(true);
-      console.log('Fetching bookings for user:', user.id);
-
+      
       const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select(`
@@ -86,7 +62,15 @@ const DriverDashboard = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const formattedBookings = bookingsData?.map(booking => ({
         id: booking.id,
@@ -112,6 +96,50 @@ const DriverDashboard = () => {
     }
   };
 
+  const setupRealtimeUpdates = () => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          fetchBookings(); // Refresh bookings when there's an update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
+
+  useEffect(() => {
+    if (!loading && (!user || user.role !== 'driver')) {
+      navigate('/login');
+      return;
+    }
+
+    if (user) {
+      fetchBookings();
+      setupRealtimeUpdates();
+      checkAndUpdateExpiredBookings();
+      
+      // Set up interval to check for expired bookings every minute
+      const interval = setInterval(checkAndUpdateExpiredBookings, 60000);
+      
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [user, loading, navigate]);
+
   const handleAddBalance = async () => {
     const amount = parseFloat(addAmount);
     if (amount && amount > 0 && user) {
@@ -124,7 +152,12 @@ const DriverDashboard = () => {
           });
 
         if (error || !result) {
-          throw error || new Error('Failed to update balance');
+          toast({
+            title: "Error",
+            description: "Failed to add balance. Please try again.",
+            variant: "destructive",
+          });
+          return;
         }
 
         updateBalance(amount);
@@ -181,7 +214,7 @@ const DriverDashboard = () => {
     }
   };
 
-  if (authLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
         <div className="text-center">
@@ -344,7 +377,7 @@ const DriverDashboard = () => {
                           <div className="font-medium">₹{booking.amount}</div>
                           <Badge 
                             variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
-                            className={getStatusColor(booking.status) + ' text-white'}
+                            className={booking.status === 'expired' ? 'bg-gray-500 text-white' : ''}
                           >
                             {getStatusText(booking.status)}
                           </Badge>
