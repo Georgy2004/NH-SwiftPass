@@ -7,6 +7,7 @@ DECLARE
   updated_count INTEGER := 0;
   current_ist TIMESTAMP;
   start_time TIMESTAMP := clock_timestamp();
+  time_elapsed NUMERIC;
 BEGIN
   -- Log function start
   RAISE LOG 'update_expired_bookings: Function execution started at %', start_time;
@@ -57,9 +58,11 @@ BEGIN
     RAISE EXCEPTION 'Failed to update bookings: %', SQLERRM;
   END;
   
+  -- Calculate elapsed time properly
+  time_elapsed := EXTRACT(EPOCH FROM (clock_timestamp() - start_time)) * 1000;
+  
   -- Log function completion
-  RAISE LOG 'update_expired_bookings: Function completed in % milliseconds', 
-    (EXTRACT(EPOCH FROM (clock_timestamp() - start_time)) * 1000;
+  RAISE LOG 'update_expired_bookings: Function completed in % milliseconds', time_elapsed;
   
   -- Ensure at least one row is returned for Supabase RPC calls
   PERFORM 1;
@@ -68,21 +71,3 @@ EXCEPTION WHEN OTHERS THEN
   RAISE;
 END;
 $$;
-
--- Update the cron job to handle errors
-SELECT cron.schedule(
-    'update-expired-bookings',
-    '* * * * *', -- Every minute
-    $$
-    BEGIN
-      PERFORM public.update_expired_bookings();
-    EXCEPTION WHEN OTHERS THEN
-      RAISE LOG 'Cron job failed: %', SQLERRM;
-    END;
-    $$
-);
-
--- Add COMMENT for documentation
-COMMENT ON FUNCTION public.update_expired_bookings() IS 
-'Updates booking status to "expired" when current time exceeds the booked time slot.
-Handles both AM/PM and 24-hour time formats. Uses Asia/Kolkata (IST) timezone for all comparisons.';
