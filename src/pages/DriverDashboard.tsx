@@ -30,18 +30,51 @@ const DriverDashboard = () => {
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  const checkAndUpdateExpiredBookings = async () => {
+  const checkAndForceUpdateExpiredBookings = async () => {
     try {
-      const { data, error } = await supabase.rpc('update_expired_bookings');
+      // First update any expired bookings
+      const { error: updateError } = await supabase.rpc('update_expired_bookings');
+      
+      if (updateError) {
+        console.error('Error updating expired bookings:', updateError);
+        return;
+      }
+      
+      // Then force refresh the bookings data
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          toll_booths (
+            name
+          )
+        `)
+        .eq('user_id', user?.id || '')
+        .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('Error updating expired bookings:', error);
-      } else {
-        // Refresh bookings after update
-        fetchBookings();
+        throw error;
       }
+      
+      const formattedBookings = data?.map(booking => ({
+        id: booking.id,
+        toll_booth_id: booking.toll_booth_id,
+        toll_name: booking.toll_booths?.name || 'Unknown Toll',
+        time_slot: booking.time_slot,
+        amount: booking.amount,
+        status: booking.status,
+        created_at: booking.created_at,
+        booking_date: booking.booking_date
+      })) || [];
+
+      setBookings(formattedBookings);
     } catch (error) {
-      console.error('Error checking expired bookings:', error);
+      console.error('Error force refreshing bookings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh bookings",
+        variant: "destructive",
+      });
     }
   };
 
@@ -110,7 +143,7 @@ const DriverDashboard = () => {
           filter: `user_id=eq.${user.id}`
         },
         () => {
-          fetchBookings(); // Refresh bookings when there's an update
+          fetchBookings();
         }
       )
       .subscribe();
@@ -129,14 +162,12 @@ const DriverDashboard = () => {
     if (user) {
       fetchBookings();
       setupRealtimeUpdates();
-      checkAndUpdateExpiredBookings();
+      checkAndForceUpdateExpiredBookings();
       
-      // Set up interval to check for expired bookings every minute
-      const interval = setInterval(checkAndUpdateExpiredBookings, 60000);
+      // Check every 30 seconds for expired bookings
+      const interval = setInterval(checkAndForceUpdateExpiredBookings, 30000);
       
-      return () => {
-        clearInterval(interval);
-      };
+      return () => clearInterval(interval);
     }
   }, [user, loading, navigate]);
 
