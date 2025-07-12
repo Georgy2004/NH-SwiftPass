@@ -23,7 +23,7 @@ interface Booking {
 }
 
 const DriverDashboard = () => {
-  const { user, logout, updateBalance, loading } = useAuth();
+  const { user, logout, updateBalance, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [addAmount, setAddAmount] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -31,33 +31,34 @@ const DriverDashboard = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== 'driver')) {
+    if (!authLoading && (!user || user.role !== 'driver')) {
       navigate('/login');
       return;
     }
 
     if (user) {
       fetchBookings();
-      setupRealtimeUpdates();
+      const unsubscribe = setupRealtimeUpdates();
+      return () => unsubscribe();
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, navigate]);
 
   const setupRealtimeUpdates = () => {
-    if (!user) return;
+    if (!user) return () => {};
 
     const channel = supabase
-      .channel('booking-updates')
+      .channel('driver-booking-updates')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'bookings',
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Booking updated:', payload);
-          fetchBookings(); // Refresh bookings when there's an update
+          console.log('Booking update received:', payload);
+          fetchBookings();
         }
       )
       .subscribe();
@@ -85,17 +86,7 @@ const DriverDashboard = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching bookings:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load bookings",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('Fetched bookings data:', bookingsData);
+      if (error) throw error;
 
       const formattedBookings = bookingsData?.map(booking => ({
         id: booking.id,
@@ -108,7 +99,6 @@ const DriverDashboard = () => {
         booking_date: booking.booking_date
       })) || [];
 
-      console.log('Formatted bookings:', formattedBookings);
       setBookings(formattedBookings);
     } catch (error) {
       console.error('Error in fetchBookings:', error);
@@ -126,7 +116,6 @@ const DriverDashboard = () => {
     const amount = parseFloat(addAmount);
     if (amount && amount > 0 && user) {
       try {
-        // Update balance using Supabase function
         const { data: result, error } = await supabase
           .rpc('update_user_balance', {
             user_uuid: user.id,
@@ -135,15 +124,9 @@ const DriverDashboard = () => {
           });
 
         if (error || !result) {
-          toast({
-            title: "Error",
-            description: "Failed to add balance. Please try again.",
-            variant: "destructive",
-          });
-          return;
+          throw error || new Error('Failed to update balance');
         }
 
-        // Update local balance
         updateBalance(amount);
         setAddAmount('');
         toast({
@@ -198,7 +181,7 @@ const DriverDashboard = () => {
     }
   };
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
         <div className="text-center">
@@ -361,7 +344,7 @@ const DriverDashboard = () => {
                           <div className="font-medium">₹{booking.amount}</div>
                           <Badge 
                             variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
-                            className={booking.status === 'expired' ? 'bg-gray-500 text-white' : ''}
+                            className={getStatusColor(booking.status) + ' text-white'}
                           >
                             {getStatusText(booking.status)}
                           </Badge>
