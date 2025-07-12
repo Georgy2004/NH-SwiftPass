@@ -30,52 +30,41 @@ const DriverDashboard = () => {
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  const checkAndForceUpdateExpiredBookings = async () => {
-    try {
-      // First update any expired bookings
-      const { error: updateError } = await supabase.rpc('update_expired_bookings');
-      
-      if (updateError) {
-        console.error('Error updating expired bookings:', updateError);
-        return;
-      }
-      
-      // Then force refresh the bookings data
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          toll_booths (
-            name
-          )
-        `)
-        .eq('user_id', user?.id || '')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw error;
-      }
-      
-      const formattedBookings = data?.map(booking => ({
-        id: booking.id,
-        toll_booth_id: booking.toll_booth_id,
-        toll_name: booking.toll_booths?.name || 'Unknown Toll',
-        time_slot: booking.time_slot,
-        amount: booking.amount,
-        status: booking.status,
-        created_at: booking.created_at,
-        booking_date: booking.booking_date
-      })) || [];
-
-      setBookings(formattedBookings);
-    } catch (error) {
-      console.error('Error force refreshing bookings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to refresh bookings",
-        variant: "destructive",
-      });
+  useEffect(() => {
+    if (!loading && (!user || user.role !== 'driver')) {
+      navigate('/login');
+      return;
     }
+
+    if (user) {
+      fetchBookings();
+      setupRealtimeUpdates();
+    }
+  }, [user, loading, navigate]);
+
+  const setupRealtimeUpdates = () => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Booking updated:', payload);
+          fetchBookings(); // Refresh bookings when there's an update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   };
 
   const fetchBookings = async () => {
@@ -83,7 +72,8 @@ const DriverDashboard = () => {
 
     try {
       setLoadingBookings(true);
-      
+      console.log('Fetching bookings for user:', user.id);
+
       const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select(`
@@ -105,6 +95,8 @@ const DriverDashboard = () => {
         return;
       }
 
+      console.log('Fetched bookings data:', bookingsData);
+
       const formattedBookings = bookingsData?.map(booking => ({
         id: booking.id,
         toll_booth_id: booking.toll_booth_id,
@@ -116,6 +108,7 @@ const DriverDashboard = () => {
         booking_date: booking.booking_date
       })) || [];
 
+      console.log('Formatted bookings:', formattedBookings);
       setBookings(formattedBookings);
     } catch (error) {
       console.error('Error in fetchBookings:', error);
@@ -129,52 +122,11 @@ const DriverDashboard = () => {
     }
   };
 
-  const setupRealtimeUpdates = () => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('booking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bookings',
-          filter: `user_id=eq.${user.id}`
-        },
-        () => {
-          fetchBookings();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
-
-  useEffect(() => {
-    if (!loading && (!user || user.role !== 'driver')) {
-      navigate('/login');
-      return;
-    }
-
-    if (user) {
-      fetchBookings();
-      setupRealtimeUpdates();
-      checkAndForceUpdateExpiredBookings();
-      
-      // Check every 30 seconds for expired bookings
-      const interval = setInterval(checkAndForceUpdateExpiredBookings, 30000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [user, loading, navigate]);
-
   const handleAddBalance = async () => {
     const amount = parseFloat(addAmount);
     if (amount && amount > 0 && user) {
       try {
+        // Update balance using Supabase function
         const { data: result, error } = await supabase
           .rpc('update_user_balance', {
             user_uuid: user.id,
@@ -191,6 +143,7 @@ const DriverDashboard = () => {
           return;
         }
 
+        // Update local balance
         updateBalance(amount);
         setAddAmount('');
         toast({

@@ -37,31 +37,36 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const checkAndForceUpdateExpiredBookings = async () => {
-    try {
-      // First update any expired bookings
-      const { error: updateError } = await supabase.rpc('update_expired_bookings');
-      
-      if (updateError) {
-        console.error('Error updating expired bookings:', updateError);
-        toast({
-          title: "Error",
-          description: "Failed to update booking statuses",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Then force refresh all data
-      await loadData();
-    } catch (error) {
-      console.error('Error force refreshing bookings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to refresh data",
-        variant: "destructive",
-      });
+  useEffect(() => {
+    if (!user || user.role !== 'admin') {
+      navigate('/login');
+      return;
     }
+
+    loadData();
+    setupRealtimeUpdates();
+  }, [user, navigate]);
+
+  const setupRealtimeUpdates = () => {
+    const channel = supabase
+      .channel('admin-booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings'
+        },
+        (payload) => {
+          console.log('Booking updated in admin dashboard:', payload);
+          loadData(); // Refresh all data when there's an update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   };
 
   const loadData = async () => {
@@ -75,7 +80,14 @@ const AdminDashboard = () => {
         .eq('role', 'driver');
 
       if (profilesError) {
-        throw profilesError;
+        console.error('Error loading drivers:', profilesError);
+        toast({
+          title: "Error",
+          description: "Failed to load drivers data",
+          variant: "destructive",
+        });
+      } else {
+        setDrivers(profilesData || []);
       }
 
       // Load bookings from Supabase with toll booth and profile information
@@ -99,24 +111,27 @@ const AdminDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (bookingsError) {
-        throw bookingsError;
+        console.error('Error loading bookings:', bookingsError);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings data",
+          variant: "destructive",
+        });
+      } else {
+        // Transform the data to match the expected format
+        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
+          id: booking.id,
+          user_id: booking.user_id,
+          tollName: booking.toll_booths?.name || 'Unknown Toll',
+          timeSlot: booking.time_slot,
+          amount: booking.amount,
+          status: booking.status,
+          createdAt: booking.created_at,
+          licensePlate: booking.profiles?.license_plate || 'N/A',
+          bookingDate: booking.booking_date
+        }));
+        setBookings(transformedBookings);
       }
-
-      // Transform the data to match the expected format
-      const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
-        id: booking.id,
-        user_id: booking.user_id,
-        tollName: booking.toll_booths?.name || 'Unknown Toll',
-        timeSlot: booking.time_slot,
-        amount: booking.amount,
-        status: booking.status,
-        createdAt: booking.created_at,
-        licensePlate: booking.profiles?.license_plate || 'N/A',
-        bookingDate: booking.booking_date
-      }));
-
-      setDrivers(profilesData || []);
-      setBookings(transformedBookings);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -128,45 +143,6 @@ const AdminDashboard = () => {
       setLoading(false);
     }
   };
-
-  const setupRealtimeUpdates = () => {
-    const channel = supabase
-      .channel('admin-booking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bookings'
-        },
-        () => {
-          loadData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
-
-  useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      navigate('/login');
-      return;
-    }
-
-    loadData();
-    setupRealtimeUpdates();
-    checkAndForceUpdateExpiredBookings();
-    
-    // Check every 30 seconds for expired bookings
-    const interval = setInterval(checkAndForceUpdateExpiredBookings, 30000);
-    
-    return () => {
-      clearInterval(interval);
-    };
-  }, [user, navigate]);
 
   const handleLogout = () => {
     logout();
