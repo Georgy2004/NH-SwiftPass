@@ -29,6 +29,27 @@ const DriverDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  // In DriverDashboard.tsx
+  const [prevBookings, setPrevBookings] = useState<Booking[]>([]);
+  
+  useEffect(() => {
+    if (bookings.length > 0 && prevBookings.length > 0) {
+      const expiredBookings = bookings.filter(
+        b => b.status === 'expired' && 
+        !prevBookings.some(pb => pb.id === b.id && pb.status === 'expired')
+      );
+      
+      if (expiredBookings.length > 0) {
+        toast({
+          title: "Booking Expired",
+          description: `${expiredBookings.length} booking(s) have expired.`,
+          variant: "default",
+        });
+      }
+    }
+  
+  setPrevBookings(bookings);
+}, [bookings]);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'driver')) {
