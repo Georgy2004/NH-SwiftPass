@@ -42,30 +42,32 @@ const DriverDashboard = () => {
     }
   }, [user, loading, navigate]);
 
-  const setupRealtimeUpdates = () => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('booking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'bookings',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('Booking updated:', payload);
-          fetchBookings(); // Refresh bookings when there's an update
+  // In both AdminDashboard and DriverDashboard
+const setupRealtimeUpdates = () => {
+  const channel = supabase
+    .channel('booking-status-updates')
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // Listen to all changes
+        schema: 'public',
+        table: 'bookings',
+        filter: user?.role === 'admin' ? undefined : `user_id=eq.${user?.id}`
+      },
+      (payload) => {
+        console.log('Booking change:', payload);
+        if (payload.eventType === 'UPDATE' && payload.new.status === 'expired') {
+          // Force refresh of bookings data
+          fetchBookings();
         }
-      )
-      .subscribe();
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+  return () => {
+    supabase.removeChannel(channel);
   };
+};
 
   const fetchBookings = async () => {
     if (!user) return;
