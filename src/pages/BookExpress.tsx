@@ -25,6 +25,17 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 };
 
+interface TollBoothWithDistance {
+  id: string;
+  name: string;
+  highway: string;
+  latitude: number;
+  longitude: number;
+  express_lane_fee: number;
+  distance: number;
+  isSelectable: boolean;
+}
+
 const BookExpress = () => {
   const { user, updateBalance } = useAuth();
   const navigate = useNavigate();
@@ -35,7 +46,7 @@ const BookExpress = () => {
   const [timeSlot, setTimeSlot] = useState('');
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [availableTolls, setAvailableTolls] = useState<any[]>([]);
+  const [availableTolls, setAvailableTolls] = useState<TollBoothWithDistance[]>([]);
 
   useEffect(() => {
     if (!user || user.role !== 'driver') {
@@ -45,7 +56,6 @@ const BookExpress = () => {
 
     // Get user's current location and fetch toll booths
     getCurrentLocation();
-    fetchTollBooths();
 
     // Check if toll was pre-selected from URL
     const preSelectedToll = searchParams.get('toll');
@@ -53,28 +63,6 @@ const BookExpress = () => {
       setSelectedToll(preSelectedToll);
     }
   }, [user, navigate, searchParams]);
-
-  const fetchTollBooths = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('toll_booths')
-        .select('*');
-
-      if (error) {
-        console.error('Error fetching toll booths:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load toll booths",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setAvailableTolls(data || []);
-    } catch (error) {
-      console.error('Error in fetchTollBooths:', error);
-    }
-  };
 
   const getCurrentLocation = () => {
     setLocationLoading(true);
@@ -93,7 +81,9 @@ const BookExpress = () => {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        setLocationLoading(false);
+        
+        // Fetch toll booths after getting location
+        fetchTollBooths(latitude, longitude);
         
         toast({
           title: "Location Found",
@@ -116,17 +106,57 @@ const BookExpress = () => {
     );
   };
 
+  const fetchTollBooths = async (userLat: number, userLng: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('toll_booths')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching toll booths:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load toll booths",
+          variant: "destructive",
+        });
+        setLocationLoading(false);
+        return;
+      }
+
+      // Calculate distances and sort by distance
+      const tollsWithDistance: TollBoothWithDistance[] = (data || []).map(toll => {
+        const tollDistance = calculateDistance(userLat, userLng, toll.latitude, toll.longitude);
+        return {
+          ...toll,
+          distance: tollDistance,
+          isSelectable: tollDistance >= 5 && tollDistance <= 20
+        };
+      });
+
+      // Sort by distance and take only the first 5
+      const sortedTolls = tollsWithDistance
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5);
+
+      setAvailableTolls(sortedTolls);
+      setLocationLoading(false);
+
+      const selectableTolls = sortedTolls.filter(toll => toll.isSelectable);
+      toast({
+        title: "Toll Booths Found",
+        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km)`,
+      });
+    } catch (error) {
+      console.error('Error in fetchTollBooths:', error);
+      setLocationLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedToll && userLocation && availableTolls.length > 0) {
       const selectedTollData = availableTolls.find(t => t.id === selectedToll);
       if (selectedTollData) {
-        const calculatedDistance = calculateDistance(
-          userLocation.lat, 
-          userLocation.lng, 
-          selectedTollData.latitude, 
-          selectedTollData.longitude
-        );
-        setDistance(calculatedDistance);
+        setDistance(selectedTollData.distance);
       }
     }
   }, [selectedToll, userLocation, availableTolls]);
@@ -155,9 +185,9 @@ const BookExpress = () => {
   }, [distance]);
 
   const selectedTollData = availableTolls.find(t => t.id === selectedToll);
-  const totalAmount = selectedTollData ? 75 + selectedTollData.express_lane_fee : 0; // Base fee + express charge
+  const totalAmount = selectedTollData ? 75 + selectedTollData.express_lane_fee : 0;
   const canAfford = user && user.balance && user.balance >= totalAmount;
-  const isInRange = distance > 0 && distance >= 5 && distance <= 20;
+  const isInRange = selectedTollData ? selectedTollData.isSelectable : false;
 
   const handleBooking = async () => {
     if (!selectedTollData || !distance || !timeSlot || !canAfford || !isInRange || !user) return;
@@ -242,19 +272,6 @@ const BookExpress = () => {
 
   if (!user) return null;
 
-  // Filter tolls within 20km if location is available
-  const nearbyTolls = userLocation 
-    ? availableTolls.filter(toll => {
-        const tollDistance = calculateDistance(
-          userLocation.lat, 
-          userLocation.lng, 
-          toll.latitude, 
-          toll.longitude
-        );
-        return tollDistance <= 20;
-      })
-    : availableTolls;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
@@ -305,7 +322,7 @@ const BookExpress = () => {
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Navigation className="h-4 w-4 text-blue-600 animate-spin" />
-                    <span className="text-blue-700">Getting your location...</span>
+                    <span className="text-blue-700">Getting your location and finding nearby toll booths...</span>
                   </div>
                 </div>
               )}
@@ -315,7 +332,7 @@ const BookExpress = () => {
                   <div className="flex items-center space-x-2">
                     <MapPin className="h-4 w-4 text-green-600" />
                     <span className="text-green-700">
-                      Location found! {nearbyTolls.length} toll booths available
+                      Location found! Showing 5 nearest toll booths
                     </span>
                   </div>
                 </div>
@@ -323,28 +340,50 @@ const BookExpress = () => {
 
               {/* Toll Selection */}
               <div className="space-y-2">
-                <Label htmlFor="tollBooth">Select Toll Booth</Label>
+                <Label htmlFor="tollBooth">Select Toll Booth (5 Nearest - Distance Order)</Label>
                 <Select value={selectedToll} onValueChange={setSelectedToll} disabled={availableTolls.length === 0}>
                   <SelectTrigger>
                     <SelectValue placeholder={
-                      availableTolls.length === 0 ? "Loading toll booths..." :
-                      nearbyTolls.length === 0 && userLocation ? "No toll booths within 20km" :
-                      "Choose a toll booth"
+                      availableTolls.length === 0 ? "Finding nearest toll booths..." :
+                      "Choose from 5 nearest toll booths"
                     } />
                   </SelectTrigger>
                   <SelectContent>
-                    {nearbyTolls.map((toll) => (
-                      <SelectItem key={toll.id} value={toll.id}>
+                    {availableTolls.map((toll) => (
+                      <SelectItem 
+                        key={toll.id} 
+                        value={toll.id}
+                        disabled={!toll.isSelectable}
+                        className={!toll.isSelectable ? "opacity-50" : ""}
+                      >
                         <div className="flex justify-between items-center w-full">
-                          <span>{toll.name}</span>
-                          <span className="ml-4 text-sm text-gray-500">
-                            ₹{75 + toll.express_lane_fee}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{toll.name}</span>
+                            <span className="text-xs text-gray-500">
+                              {toll.distance.toFixed(1)} km away • {toll.highway}
+                              {!toll.isSelectable && " • Outside booking range"}
+                            </span>
+                          </div>
+                          <div className="ml-4 text-right">
+                            <span className="text-sm font-medium">₹{75 + toll.express_lane_fee}</span>
+                            {toll.isSelectable ? (
+                              <Badge variant="secondary" className="ml-2 text-xs">Available</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="ml-2 text-xs">
+                                {toll.distance < 5 ? "Too Close" : "Too Far"}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {availableTolls.length > 0 && (
+                  <p className="text-sm text-gray-600">
+                    Only toll booths within 5-20 km range can be selected for booking.
+                  </p>
+                )}
               </div>
 
               {/* Auto-calculated Distance Display */}
