@@ -29,27 +29,6 @@ const DriverDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
-  // In DriverDashboard.tsx
-  const [prevBookings, setPrevBookings] = useState<Booking[]>([]);
-  
-  useEffect(() => {
-    if (bookings.length > 0 && prevBookings.length > 0) {
-      const expiredBookings = bookings.filter(
-        b => b.status === 'expired' && 
-        !prevBookings.some(pb => pb.id === b.id && pb.status === 'expired')
-      );
-      
-      if (expiredBookings.length > 0) {
-        toast({
-          title: "Booking Expired",
-          description: `${expiredBookings.length} booking(s) have expired.`,
-          variant: "default",
-        });
-      }
-    }
-  
-  setPrevBookings(bookings);
-}, [bookings]);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'driver')) {
@@ -62,43 +41,31 @@ const DriverDashboard = () => {
       setupRealtimeUpdates();
     }
   }, [user, loading, navigate]);
-  // In both AdminDashboard and DriverDashboard
-  useEffect(() => {
+
+  const setupRealtimeUpdates = () => {
     if (!user) return;
-  
-    const interval = setInterval(() => {
-      fetchBookings();
-    }, 30000); // Refresh every 30 seconds
-  
-    return () => clearInterval(interval);
-  }, [user]);
 
-  // In both AdminDashboard and DriverDashboard
-const setupRealtimeUpdates = () => {
-  const channel = supabase
-    .channel('booking-status-updates')
-    .on(
-      'postgres_changes',
-      {
-        event: '*', // Listen to all changes
-        schema: 'public',
-        table: 'bookings',
-        filter: user?.role === 'admin' ? undefined : `user_id=eq.${user?.id}`
-      },
-      (payload) => {
-        console.log('Booking change:', payload);
-        if (payload.eventType === 'UPDATE' && payload.new.status === 'expired') {
-          // Force refresh of bookings data
-          fetchBookings();
+    const channel = supabase
+      .channel('booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Booking updated:', payload);
+          fetchBookings(); // Refresh bookings when there's an update
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   };
-};
 
   const fetchBookings = async () => {
     if (!user) return;
