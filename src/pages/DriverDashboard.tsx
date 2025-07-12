@@ -30,58 +30,6 @@ const DriverDashboard = () => {
   const [showNearbyTolls, setShowNearbyTolls] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  const checkAndUpdateExpiredBookings = async () => {
-    if (!user) return;
-    
-    const currentTime = new Date();
-    
-    const expiredBookings = bookings.filter(booking => {
-      if (booking.status !== 'confirmed') return false;
-      
-      const bookingDate = new Date(booking.created_at);
-      const timeSlotEnd = booking.time_slot.split('-')[1];
-      let endTime = new Date(bookingDate);
-      
-      if (timeSlotEnd.includes('pm') || timeSlotEnd.includes('am')) {
-        const timeStr = timeSlotEnd.trim();
-        const isPM = timeStr.includes('pm');
-        const timeWithoutAmPm = timeStr.replace(/[ap]m/i, '');
-        const [hours, minutes] = timeWithoutAmPm.split(':').map(Number);
-        
-        let adjustedHours = hours;
-        if (isPM && hours !== 12) adjustedHours = hours + 12;
-        else if (!isPM && hours === 12) adjustedHours = 0;
-        
-        endTime.setHours(adjustedHours, minutes, 0, 0);
-      } else {
-        const [hours, minutes] = timeSlotEnd.split(':').map(Number);
-        endTime.setHours(hours, minutes, 0, 0);
-      }
-      
-      return currentTime > endTime;
-    });
-
-    if (expiredBookings.length > 0) {
-      try {
-        const { error } = await supabase
-          .from('bookings')
-          .update({ status: 'expired' })
-          .in('id', expiredBookings.map(b => b.id));
-        
-        if (error) {
-          console.error('Error updating expired bookings:', error);
-          toast({
-            title: "Error",
-            description: "Failed to update expired bookings",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('Error in expiration update:', error);
-      }
-    }
-  };
-
   useEffect(() => {
     if (!loading && (!user || user.role !== 'driver')) {
       navigate('/login');
@@ -91,11 +39,8 @@ const DriverDashboard = () => {
     if (user) {
       fetchBookings();
       setupRealtimeUpdates();
-      
-      const interval = setInterval(checkAndUpdateExpiredBookings, 10000);
-      return () => clearInterval(interval);
     }
-  }, [user, loading, navigate, bookings]);
+  }, [user, loading, navigate]);
 
   const setupRealtimeUpdates = () => {
     if (!user) return;
@@ -105,13 +50,14 @@ const DriverDashboard = () => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'bookings',
           filter: `user_id=eq.${user.id}`
         },
-        () => {
-          fetchBookings();
+        (payload) => {
+          console.log('Booking updated:', payload);
+          fetchBookings(); // Refresh bookings when there's an update
         }
       )
       .subscribe();
@@ -126,6 +72,8 @@ const DriverDashboard = () => {
 
     try {
       setLoadingBookings(true);
+      console.log('Fetching bookings for user:', user.id);
+
       const { data: bookingsData, error } = await supabase
         .from('bookings')
         .select(`
@@ -137,7 +85,17 @@ const DriverDashboard = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load bookings",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Fetched bookings data:', bookingsData);
 
       const formattedBookings = bookingsData?.map(booking => ({
         id: booking.id,
@@ -150,9 +108,10 @@ const DriverDashboard = () => {
         booking_date: booking.booking_date
       })) || [];
 
+      console.log('Formatted bookings:', formattedBookings);
       setBookings(formattedBookings);
     } catch (error) {
-      console.error('Error fetching bookings:', error);
+      console.error('Error in fetchBookings:', error);
       toast({
         title: "Error",
         description: "Failed to load bookings",
@@ -167,6 +126,7 @@ const DriverDashboard = () => {
     const amount = parseFloat(addAmount);
     if (amount && amount > 0 && user) {
       try {
+        // Update balance using Supabase function
         const { data: result, error } = await supabase
           .rpc('update_user_balance', {
             user_uuid: user.id,
@@ -174,8 +134,16 @@ const DriverDashboard = () => {
             transaction_description: 'Account top-up'
           });
 
-        if (error || !result) throw error;
+        if (error || !result) {
+          toast({
+            title: "Error",
+            description: "Failed to add balance. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
 
+        // Update local balance
         updateBalance(amount);
         setAddAmount('');
         toast({
