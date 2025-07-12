@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE public.user_role AS ENUM ('admin', 'driver');
 
 -- Create enum for booking status
-CREATE TYPE public.booking_status AS ENUM ('confirmed', 'completed', 'cancelled', 'refunded','expired');
+CREATE TYPE public.booking_status AS ENUM ('confirmed', 'completed', 'cancelled', 'refunded');
 
 -- Create enum for transaction types
 CREATE TYPE public.transaction_type AS ENUM ('booking_payment', 'account_topup', 'refund', 'fine');
