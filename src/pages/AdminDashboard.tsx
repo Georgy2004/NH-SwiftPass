@@ -46,6 +46,16 @@ const AdminDashboard = () => {
     loadData();
     setupRealtimeUpdates();
   }, [user, navigate]);
+  // In both AdminDashboard and DriverDashboard
+  useEffect(() => {
+    if (!user) return;
+  
+    const interval = setInterval(() => {
+      fetchBookings();
+    }, 30000); // Refresh every 30 seconds
+  
+    return () => clearInterval(interval);
+  }, [user]);
 
 // In both AdminDashboard and DriverDashboard
 const setupRealtimeUpdates = () => {
