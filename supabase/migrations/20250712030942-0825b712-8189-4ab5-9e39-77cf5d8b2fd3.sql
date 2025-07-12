@@ -1,3 +1,4 @@
+-- Create a function to update expired bookings
 CREATE OR REPLACE FUNCTION update_expired_bookings()
 RETURNS void
 LANGUAGE plpgsql
@@ -36,3 +37,23 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- Add 'expired' status to the booking_status enum if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'booking_status' AND 'expired' = ANY(enum_range(NULL::booking_status)::text[])) THEN
+        ALTER TYPE booking_status ADD VALUE 'expired';
+    END IF;
+END $$;
+
+-- Remove existing cron job if it exists
+SELECT cron.unschedule('update-expired-bookings') WHERE EXISTS (
+  SELECT 1 FROM cron.job WHERE jobname = 'update-expired-bookings'
+);
+
+-- Create a scheduled job to run every minute to check for expired bookings
+SELECT cron.schedule(
+    'update-expired-bookings',
+    '* * * * *', -- Every minute
+    'SELECT update_expired_bookings();'
+);
