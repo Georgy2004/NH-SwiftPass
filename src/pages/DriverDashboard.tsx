@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +17,7 @@ interface Booking {
   toll_name: string;
   time_slot: string;
   amount: number;
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'expired';
   created_at: string;
   booking_date: string;
 }
@@ -39,8 +38,34 @@ const DriverDashboard = () => {
 
     if (user) {
       fetchBookings();
+      setupRealtimeUpdates();
     }
   }, [user, loading, navigate]);
+
+  const setupRealtimeUpdates = () => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'bookings',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Booking updated:', payload);
+          fetchBookings(); // Refresh bookings when there's an update
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -157,7 +182,19 @@ const DriverDashboard = () => {
       case 'completed': return 'bg-green-500';
       case 'cancelled': return 'bg-red-500';
       case 'refunded': return 'bg-yellow-500';
+      case 'expired': return 'bg-gray-500';
       default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'ACTIVE';
+      case 'completed': return 'COMPLETED';
+      case 'cancelled': return 'CANCELLED';
+      case 'refunded': return 'REFUNDED';
+      case 'expired': return 'EXPIRED';
+      default: return status.toUpperCase();
     }
   };
 
@@ -322,8 +359,11 @@ const DriverDashboard = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-medium">₹{booking.amount}</div>
-                          <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
-                            {booking.status.toUpperCase()}
+                          <Badge 
+                            variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
+                            className={booking.status === 'expired' ? 'bg-gray-500 text-white' : ''}
+                          >
+                            {getStatusText(booking.status)}
                           </Badge>
                         </div>
                       </div>
