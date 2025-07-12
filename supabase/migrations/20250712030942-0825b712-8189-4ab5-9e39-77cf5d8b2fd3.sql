@@ -1,21 +1,24 @@
--- Update the function to properly handle AM/PM time parsing and date logic
 CREATE OR REPLACE FUNCTION public.update_expired_bookings()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  -- Update bookings where current time has exceeded the time slot end time
+  -- Convert current time to IST (UTC+5:30) for comparison
+  DECLARE current_ist TIMESTAMP WITH TIME ZONE;
+  current_ist := (NOW() AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::TIMESTAMP;
+  
+  -- Update bookings where current IST time has exceeded the time slot end time
   UPDATE public.bookings 
   SET status = 'expired'::booking_status,
       updated_at = now()
   WHERE status = 'confirmed'::booking_status
     AND (
-      -- If booking date is in the past, automatically expire
-      booking_date < CURRENT_DATE OR
-      -- If booking is for today, check if current time has passed the end time
-      (booking_date = CURRENT_DATE AND 
-       CURRENT_TIME > (
+      -- If booking date is in the past (IST)
+      (booking_date < current_ist::DATE) OR
+      -- If booking is for today (IST), check if current time has passed the end time
+      (booking_date = current_ist::DATE AND 
+       (current_ist::TIME > (
          -- Parse the end time from time_slot (e.g., "07:11 am - 07:21 am")
          CASE 
            WHEN LOWER(TRIM(split_part(time_slot, ' - ', 2))) LIKE '%pm' AND 
@@ -34,17 +37,17 @@ BEGIN
              split_part(TRIM(split_part(time_slot, ' - ', 2)), ':', 1) || ':' || 
              split_part(split_part(TRIM(split_part(time_slot, ' - ', 2)), ':', 2), ' ', 1)
          END
-       )::TIME)
+       )::TIME))
     );
 END;
 $$;
 
--- Manually run the function once to update existing expired bookings
+-- Manually run the function to test
 SELECT public.update_expired_bookings();
 
--- Schedule the function to run every minute
+-- Ensure the cron job is scheduled
 SELECT cron.schedule(
     'update-expired-bookings',
     '* * * * *', -- Every minute
-    'SELECT public.update_expired_bookings();'
+    $$SELECT public.update_expired_bookings()$$
 );
