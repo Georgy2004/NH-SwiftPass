@@ -44,7 +44,8 @@ const AdminDashboard = () => {
     }
 
     loadData();
-    setupRealtimeUpdates();
+    const unsubscribe = setupRealtimeUpdates();
+    return () => unsubscribe();
   }, [user, navigate]);
 
   const setupRealtimeUpdates = () => {
@@ -53,12 +54,24 @@ const AdminDashboard = () => {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'bookings'
         },
         (payload) => {
-          console.log('Booking updated in admin dashboard:', payload);
+          console.log('Booking update received:', payload);
+          loadData(); // Refresh all data when there's an update
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles'
+        },
+        (payload) => {
+          console.log('Driver update received:', payload);
           loadData(); // Refresh all data when there's an update
         }
       )
@@ -79,16 +92,8 @@ const AdminDashboard = () => {
         .select('id, email, license_plate, balance')
         .eq('role', 'driver');
 
-      if (profilesError) {
-        console.error('Error loading drivers:', profilesError);
-        toast({
-          title: "Error",
-          description: "Failed to load drivers data",
-          variant: "destructive",
-        });
-      } else {
-        setDrivers(profilesData || []);
-      }
+      if (profilesError) throw profilesError;
+      setDrivers(profilesData || []);
 
       // Load bookings from Supabase with toll booth and profile information
       const { data: bookingsData, error: bookingsError } = await supabase
@@ -110,28 +115,22 @@ const AdminDashboard = () => {
         `)
         .order('created_at', { ascending: false });
 
-      if (bookingsError) {
-        console.error('Error loading bookings:', bookingsError);
-        toast({
-          title: "Error",
-          description: "Failed to load bookings data",
-          variant: "destructive",
-        });
-      } else {
-        // Transform the data to match the expected format
-        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
-          id: booking.id,
-          user_id: booking.user_id,
-          tollName: booking.toll_booths?.name || 'Unknown Toll',
-          timeSlot: booking.time_slot,
-          amount: booking.amount,
-          status: booking.status,
-          createdAt: booking.created_at,
-          licensePlate: booking.profiles?.license_plate || 'N/A',
-          bookingDate: booking.booking_date
-        }));
-        setBookings(transformedBookings);
-      }
+      if (bookingsError) throw bookingsError;
+
+      // Transform the data to match the expected format
+      const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
+        id: booking.id,
+        user_id: booking.user_id,
+        tollName: booking.toll_booths?.name || 'Unknown Toll',
+        timeSlot: booking.time_slot,
+        amount: booking.amount,
+        status: booking.status,
+        createdAt: booking.created_at,
+        licensePlate: booking.profiles?.license_plate || 'N/A',
+        bookingDate: booking.booking_date
+      }));
+
+      setBookings(transformedBookings);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -166,7 +165,7 @@ const AdminDashboard = () => {
       case 'cancelled': return 'bg-red-500 text-white';
       case 'refunded': return 'bg-yellow-500 text-white';
       case 'expired': return 'bg-gray-500 text-white';
-      default: return '';
+      default: return 'bg-gray-500 text-white';
     }
   };
 
@@ -360,9 +359,7 @@ const AdminDashboard = () => {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">{booking.tollName}</h4>
-                        <Badge 
-                          className={getStatusColor(booking.status)}
-                        >
+                        <Badge className={getStatusColor(booking.status)}>
                           {getStatusText(booking.status)}
                         </Badge>
                       </div>
