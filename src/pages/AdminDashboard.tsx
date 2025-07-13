@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import dayjs from 'dayjs';
 
 interface Driver {
   id: string;
@@ -49,26 +50,14 @@ const AdminDashboard = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      // Load drivers from Supabase
-      const { data: profilesData, error: profilesError } = await supabase
+
+      const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, email, license_plate, balance')
         .eq('role', 'driver');
+      setDrivers(profilesData || []);
 
-      if (profilesError) {
-        console.error('Error loading drivers:', profilesError);
-        toast({
-          title: "Error",
-          description: "Failed to load drivers data",
-          variant: "destructive",
-        });
-      } else {
-        setDrivers(profilesData || []);
-      }
-
-      // Load bookings from Supabase with toll booth and profile information
-      const { data: bookingsData, error: bookingsError } = await supabase
+      const { data: bookingsData } = await supabase
         .from('bookings')
         .select(`
           id,
@@ -77,43 +66,42 @@ const AdminDashboard = () => {
           amount,
           status,
           created_at,
-          toll_booths:toll_booth_id (
-            name
-          ),
-          profiles:user_id (
-            license_plate
-          )
+          toll_booths:toll_booth_id ( name ),
+          profiles:user_id ( license_plate )
         `)
         .order('created_at', { ascending: false });
 
-      if (bookingsError) {
-        console.error('Error loading bookings:', bookingsError);
-        toast({
-          title: "Error",
-          description: "Failed to load bookings data",
-          variant: "destructive",
-        });
-      } else {
-        // Transform the data to match the expected format
-        const transformedBookings: Booking[] = (bookingsData || []).map((booking: any) => ({
-          id: booking.id,
-          user_id: booking.user_id,
-          tollName: booking.toll_booths?.name || 'Unknown Toll',
-          timeSlot: booking.time_slot,
-          amount: booking.amount,
-          status: booking.status,
-          createdAt: booking.created_at,
-          licensePlate: booking.profiles?.license_plate || 'N/A'
-        }));
-        setBookings(transformedBookings);
-      }
+      const currentDateTime = dayjs();
+
+      const transformedBookings: Booking[] = await Promise.all(
+        (bookingsData || []).map(async (booking: any) => {
+          const endTime = booking.time_slot?.split('-')[1]?.trim();
+          const bookingDate = dayjs(booking.created_at);
+          const bookingDateTime = dayjs(`${bookingDate.format('YYYY-MM-DD')} ${endTime}`, 'YYYY-MM-DD hh:mma');
+
+          const isExpired = currentDateTime.isAfter(bookingDateTime);
+
+          if (isExpired && booking.status === 'confirmed') {
+            await supabase.from('bookings').update({ status: 'completed' }).eq('id', booking.id);
+            booking.status = 'completed';
+          }
+
+          return {
+            id: booking.id,
+            user_id: booking.user_id,
+            tollName: booking.toll_booths?.name || 'Unknown Toll',
+            timeSlot: booking.time_slot,
+            amount: booking.amount,
+            status: booking.status,
+            createdAt: booking.created_at,
+            licensePlate: booking.profiles?.license_plate || 'N/A'
+          };
+        })
+      );
+
+      setBookings(transformedBookings);
     } catch (error) {
-      console.error('Error loading data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to load data", variant: "destructive" });
     } finally {
       setLoading(false);
     }
