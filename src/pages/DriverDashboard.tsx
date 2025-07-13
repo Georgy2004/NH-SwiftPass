@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Car, CreditCard, Clock, MapPin, Plus, LogOut, Zap } from 'lucide-react';
 import NearbyTolls from '@/components/NearbyTolls';
+import dayjs from 'dayjs';
 
 interface Booking {
   id: string;
@@ -47,16 +47,10 @@ const DriverDashboard = () => {
 
     try {
       setLoadingBookings(true);
-      console.log('Fetching bookings for user:', user.id);
 
       const { data: bookingsData, error } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          toll_booths (
-            name
-          )
-        `)
+        .select(`*, toll_booths ( name )`)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -70,20 +64,34 @@ const DriverDashboard = () => {
         return;
       }
 
-      console.log('Fetched bookings data:', bookingsData);
+      const currentDateTime = dayjs();
 
-      const formattedBookings = bookingsData?.map(booking => ({
-        id: booking.id,
-        toll_booth_id: booking.toll_booth_id,
-        toll_name: booking.toll_booths?.name || 'Unknown Toll',
-        time_slot: booking.time_slot,
-        amount: booking.amount,
-        status: booking.status,
-        created_at: booking.created_at,
-        booking_date: booking.booking_date
-      })) || [];
+      const formattedBookings = await Promise.all(
+        (bookingsData || []).map(async booking => {
+          const endTime = booking.time_slot?.split('-')[1]?.trim();
+          const bookingDate = dayjs(booking.booking_date);
+          const bookingDateTime = dayjs(`${bookingDate.format('YYYY-MM-DD')} ${endTime}`, 'YYYY-MM-DD hh:mma');
 
-      console.log('Formatted bookings:', formattedBookings);
+          const isExpired = currentDateTime.isAfter(bookingDateTime);
+
+          if (isExpired && booking.status === 'confirmed') {
+            await supabase.from('bookings').update({ status: 'completed' }).eq('id', booking.id);
+            booking.status = 'completed';
+          }
+
+          return {
+            id: booking.id,
+            toll_booth_id: booking.toll_booth_id,
+            toll_name: booking.toll_booths?.name || 'Unknown Toll',
+            time_slot: booking.time_slot,
+            amount: booking.amount,
+            status: booking.status,
+            created_at: booking.created_at,
+            booking_date: booking.booking_date
+          };
+        })
+      );
+
       setBookings(formattedBookings);
     } catch (error) {
       console.error('Error in fetchBookings:', error);
@@ -101,7 +109,6 @@ const DriverDashboard = () => {
     const amount = parseFloat(addAmount);
     if (amount && amount > 0 && user) {
       try {
-        // Update balance using Supabase function
         const { data: result, error } = await supabase
           .rpc('update_user_balance', {
             user_uuid: user.id,
@@ -118,7 +125,6 @@ const DriverDashboard = () => {
           return;
         }
 
-        // Update local balance
         updateBalance(amount);
         setAddAmount('');
         toast({
@@ -173,7 +179,6 @@ const DriverDashboard = () => {
   }
 
   if (!user) return null;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
