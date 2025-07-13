@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,7 +26,6 @@ interface Booking {
   status: string;
   createdAt: string;
   licensePlate: string;
-  bookingDate: string;
 }
 
 const AdminDashboard = () => {
@@ -44,30 +44,7 @@ const AdminDashboard = () => {
     }
 
     loadData();
-    setupRealtimeUpdates();
   }, [user, navigate]);
-
-  const setupRealtimeUpdates = () => {
-    const channel = supabase
-      .channel('admin-booking-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'bookings'
-        },
-        (payload) => {
-          console.log('Booking updated in admin dashboard:', payload);
-          loadData(); // Refresh all data when there's an update
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
 
   const loadData = async () => {
     try {
@@ -100,7 +77,6 @@ const AdminDashboard = () => {
           amount,
           status,
           created_at,
-          booking_date,
           toll_booths:toll_booth_id (
             name
           ),
@@ -127,8 +103,7 @@ const AdminDashboard = () => {
           amount: booking.amount,
           status: booking.status,
           createdAt: booking.created_at,
-          licensePlate: booking.profiles?.license_plate || 'N/A',
-          bookingDate: booking.booking_date
+          licensePlate: booking.profiles?.license_plate || 'N/A'
         }));
         setBookings(transformedBookings);
       }
@@ -159,34 +134,11 @@ const AdminDashboard = () => {
     booking.licensePlate.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'bg-blue-500 text-white';
-      case 'completed': return 'bg-green-500 text-white';
-      case 'cancelled': return 'bg-red-500 text-white';
-      case 'refunded': return 'bg-yellow-500 text-white';
-      case 'expired': return 'bg-gray-500 text-white';
-      default: return '';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'CONFIRMED';
-      case 'completed': return 'COMPLETED';
-      case 'cancelled': return 'CANCELLED';
-      case 'refunded': return 'REFUNDED';
-      case 'expired': return 'EXPIRED';
-      default: return status.toUpperCase();
-    }
-  };
-
   const stats = {
     totalDrivers: drivers.length,
     activeBookings: bookings.filter(b => b.status === 'confirmed').length,
     totalRevenue: bookings.reduce((sum, b) => sum + Number(b.amount), 0),
     completedBookings: bookings.filter(b => b.status === 'completed').length,
-    expiredBookings: bookings.filter(b => b.status === 'expired').length,
   };
 
   if (!user) return null;
@@ -229,7 +181,7 @@ const AdminDashboard = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-5 gap-4 mb-8">
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card className="toll-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -246,7 +198,7 @@ const AdminDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Confirmed Bookings</p>
+                  <p className="text-sm text-gray-600">Active Bookings</p>
                   <p className="text-2xl font-bold text-highway-green">{stats.activeBookings}</p>
                 </div>
                 <Clock className="h-8 w-8 text-highway-green" />
@@ -274,18 +226,6 @@ const AdminDashboard = () => {
                   <p className="text-2xl font-bold text-gray-700">{stats.completedBookings}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-gray-700" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="toll-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Expired</p>
-                  <p className="text-2xl font-bold text-gray-500">{stats.expiredBookings}</p>
-                </div>
-                <Clock className="h-8 w-8 text-gray-500" />
               </div>
             </CardContent>
           </Card>
@@ -361,9 +301,10 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">{booking.tollName}</h4>
                         <Badge 
-                          className={getStatusColor(booking.status)}
+                          variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
+                          className={booking.status === 'completed' ? 'bg-green-500 text-white' : ''}
                         >
-                          {getStatusText(booking.status)}
+                          {booking.status.toUpperCase()}
                         </Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
@@ -377,10 +318,7 @@ const AdminDashboard = () => {
                           <span className="font-medium">Time Slot:</span> {booking.timeSlot}
                         </div>
                         <div>
-                          <span className="font-medium">Date:</span> {new Date(booking.bookingDate).toLocaleDateString()}
-                        </div>
-                        <div className="col-span-2">
-                          <span className="font-medium">Booked:</span> {new Date(booking.createdAt).toLocaleString()}
+                          <span className="font-medium">Booked:</span> {new Date(booking.createdAt).toLocaleDateString()}
                         </div>
                       </div>
                     </div>
