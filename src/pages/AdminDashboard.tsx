@@ -172,7 +172,7 @@ const AdminDashboard = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'ACTIVE';
+      case 'confirmed': return 'CONFIRMED';
       case 'completed': return 'COMPLETED';
       case 'cancelled': return 'CANCELLED';
       case 'refunded': return 'REFUNDED';
@@ -246,7 +246,7 @@ const AdminDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Active Bookings</p>
+                  <p className="text-sm text-gray-600">Confirmed Bookings</p>
                   <p className="text-2xl font-bold text-highway-green">{stats.activeBookings}</p>
                 </div>
                 <Clock className="h-8 w-8 text-highway-green" />

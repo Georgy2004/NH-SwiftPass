@@ -189,12 +189,23 @@ const DriverDashboard = () => {
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'ACTIVE';
+      case 'confirmed': return 'CONFIRMED';
       case 'completed': return 'COMPLETED';
       case 'cancelled': return 'CANCELLED';
       case 'refunded': return 'REFUNDED';
       case 'expired': return 'EXPIRED';
       default: return status.toUpperCase();
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'default';
+      case 'completed': return 'secondary';
+      case 'cancelled': return 'destructive';
+      case 'refunded': return 'secondary';
+      case 'expired': return 'secondary';
+      default: return 'secondary';
     }
   };
 
@@ -360,7 +371,7 @@ const DriverDashboard = () => {
                         <div className="text-right">
                           <div className="font-medium">₹{booking.amount}</div>
                           <Badge 
-                            variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
+                            variant={getStatusBadgeVariant(booking.status)}
                             className={booking.status === 'expired' ? 'bg-gray-500 text-white' : ''}
                           >
                             {getStatusText(booking.status)}
