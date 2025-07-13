@@ -185,6 +185,10 @@ export type Database = {
         Args: { user_id: string }
         Returns: boolean
       }
+      update_expired_bookings: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       update_user_balance: {
         Args: {
           user_uuid: string
