@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { Car, ArrowLeft } from 'lucide-react';
 
@@ -14,7 +12,6 @@ const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'driver'>('driver');
   const [licensePlate, setLicensePlate] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -32,7 +29,7 @@ const Register = () => {
       return;
     }
 
-    if (role === 'driver' && !licensePlate) {
+    if (!licensePlate) {
       toast({
         title: "License Plate Required",
         description: "Please enter your vehicle license plate number.",
@@ -44,15 +41,13 @@ const Register = () => {
     setLoading(true);
 
     try {
-      const success = await register(email, password, role, licensePlate);
+      const success = await register(email, password, 'driver', licensePlate);
       if (success) {
         toast({
           title: "Registration Successful",
           description: `Account created successfully! Welcome to Highway Express.`,
         });
-        
-        // Navigate based on role
-        navigate(role === 'admin' ? '/admin' : '/driver');
+        navigate('/driver');
       } else {
         toast({
           title: "Registration Failed",
@@ -74,7 +69,6 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Back to Home */}
         <Button 
           variant="ghost" 
           className="mb-6" 
@@ -90,26 +84,13 @@ const Register = () => {
               <Car className="h-8 w-8 text-highway-blue" />
               <span className="text-2xl font-bold text-highway-blue">Highway Express</span>
             </div>
-            <CardTitle className="text-2xl">Create Account</CardTitle>
+            <CardTitle className="text-2xl">Driver Registration</CardTitle>
             <CardDescription>
               Join thousands of drivers saving time on highways
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="role">Register As</Label>
-                <Select value={role} onValueChange={(value: 'admin' | 'driver') => setRole(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="driver">Driver</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -122,19 +103,17 @@ const Register = () => {
                 />
               </div>
 
-              {role === 'driver' && (
-                <div className="space-y-2">
-                  <Label htmlFor="licensePlate">License Plate Number</Label>
-                  <Input
-                    id="licensePlate"
-                    type="text"
-                    placeholder="e.g., MH01AB1234"
-                    value={licensePlate}
-                    onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
-                    required
-                  />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="licensePlate">License Plate Number</Label>
+                <Input
+                  id="licensePlate"
+                  type="text"
+                  placeholder="e.g., MH01AB1234"
+                  value={licensePlate}
+                  onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
+                  required
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -178,14 +157,12 @@ const Register = () => {
               </p>
             </div>
 
-            {role === 'driver' && (
-              <div className="mt-6 p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-700">
-                  <strong>Driver Benefits:</strong> You'll start with ₹1,000 in your account 
-                  to book express lanes immediately!
-                </p>
-              </div>
-            )}
+            <div className="mt-6 p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-green-700">
+                <strong>Driver Benefits:</strong> You'll start with ₹1,000 in your account 
+                to book express lanes immediately!
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
