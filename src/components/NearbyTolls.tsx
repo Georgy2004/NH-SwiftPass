@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { MapPin, Navigation, Clock, X } from 'lucide-react';
 
-// Declare google as a global object to avoid TypeScript errors
+// Declare google as a global object
 declare const google: any;
 
 interface TollBooth {
@@ -15,13 +15,12 @@ interface TollBooth {
   expressCharge: number;
   latitude: number;
   longitude: number;
-  distance?: number; // Distance in kilometers (driving distance from Google Maps)
-  duration?: number; // Duration in seconds (driving duration from Google Maps)
+  distance?: number;
+  duration?: number; // Added duration in seconds
 }
 
 // Sample toll booth locations (in a real app, these would come from a database)
-// These are illustrative; actual data for BookExpress page comes from Supabase.
-// For NearbyTolls, we use a static list for simplicity in this component.
+// These are illustrative; actual data comes from Supabase in your BookExpress page.
 const TOLL_BOOTHS_WITH_LOCATIONS: TollBooth[] = [
   { 
     id: '1', 
@@ -78,45 +77,36 @@ interface NearbyTollsProps {
   onSelectToll: (tollId: string) => void;
 }
 
+// Haversine formula (commented out, as Google Distance Matrix will be used)
+// const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+//   const R = 6371; // Earth's radius in kilometers
+//   const dLat = (lat2 - lat1) * Math.PI / 180;
+//   const dLon = (lon2 - lon1) * Math.PI / 180;
+//   const a =
+//     Math.sin(dLat/2) * Math.sin(dLat/2) +
+//     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+//     Math.sin(dLon/2) * Math.sin(dLon/2);
+//   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+//   return R * c;
+// };
+
 const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [nearbyTolls, setNearbyTolls] = useState<TollBooth[]>([]);
   const [loading, setLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [isApiLoaded, setIsApiLoaded] = useState(false);
 
-  // Effect to check if Google Maps API is loaded
   useEffect(() => {
-    const checkGoogleMaps = () => {
-      if (typeof google !== 'undefined' && google.maps && google.maps.DistanceMatrixService) {
-        setIsApiLoaded(true);
-      } else {
-        setTimeout(checkGoogleMaps, 500); // Retry after 500ms
-      }
-    };
-    checkGoogleMaps();
+    getCurrentLocation();
   }, []);
 
-  // Effect to get current location once API is loaded
-  useEffect(() => {
-    if (isApiLoaded) {
-      getCurrentLocation();
-    }
-  }, [isApiLoaded]);
-
-  // Function to get the user's current location using navigator.geolocation
   const getCurrentLocation = () => {
     setLoading(true);
     setLocationError(null);
 
     if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported by this browser.');
+      setLocationError('Geolocation is not supported by this browser');
       setLoading(false);
-      toast({
-        title: "Location Error",
-        description: "Geolocation is not supported by your browser.",
-        variant: "destructive",
-      });
       return;
     }
 
@@ -124,29 +114,28 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        fetchDistancesAndTimesFromGoogle(latitude, longitude); // Proceed to fetch distances using Google API
+        fetchDistancesAndTimesFromGoogle(latitude, longitude); // Call Google API
       },
       (error) => {
-        setLocationError('Unable to retrieve your location. Please ensure location services are enabled and permissions are granted.');
+        setLocationError('Unable to retrieve your location');
         setLoading(false);
         toast({
           title: "Location Error",
-          description: "Please enable location access to find nearby tolls.",
+          description: "Please enable location access to find nearby tolls",
           variant: "destructive",
         });
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000, // 10 seconds
+        timeout: 10000,
         maximumAge: 300000 // 5 minutes
       }
     );
   };
 
-  // Function to fetch driving distances and times using Google Distance Matrix API
   const fetchDistancesAndTimesFromGoogle = (userLat: number, userLng: number) => {
-    if (!isApiLoaded) {
-      setLocationError("Google Maps API is not loaded yet. Please try again.");
+    if (!google.maps || !google.maps.DistanceMatrixService) {
+      setLocationError("Google Maps API not loaded. Please try again.");
       setLoading(false);
       return;
     }
@@ -164,21 +153,21 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
         destinations: destinations,
         travelMode: google.maps.TravelMode.DRIVING,
         unitSystem: google.maps.UnitSystem.METRIC,
-        avoidHighways: false, // Set to true if you want to avoid highways
-        avoidTolls: false,    // Set to true if you want to avoid tolls
+        avoidHighways: false,
+        avoidTolls: false,
       },
-      (response: google.maps.DistanceMatrixResponse | null, status: google.maps.DistanceMatrixStatus) => {
-        if (status !== 'OK' || !response) {
-          console.error('Error with Distance Matrix API:', status, response);
-          setLocationError(`Error fetching distances: ${status}. Please try again.`);
+      (response: any, status: any) => {
+        if (status !== 'OK') {
+          console.error('Error with Distance Matrix API', status, response);
+          setLocationError(`Error fetching distances: ${status}`);
           setLoading(false);
           return;
         }
 
-        if (response.rows[0] && response.rows[0].elements) {
+        if (response.rows[0].elements) {
           const updatedTolls = TOLL_BOOTHS_WITH_LOCATIONS.map((toll, index) => {
             const element = response.rows[0].elements[index];
-            if (element.status === 'OK' && element.distance && element.duration) {
+            if (element.status === 'OK') {
               // Convert meters to kilometers
               const distance = element.distance.value / 1000;
               // Duration is in seconds
@@ -192,26 +181,24 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             return { ...toll, distance: undefined, duration: undefined }; // Mark as undefined if no data
           });
 
-          // Filter tolls within 20km and sort by distance
           const filteredAndSortedTolls = updatedTolls
-            .filter(toll => typeof toll.distance === 'number' && toll.distance <= 20)
-            .sort((a, b) => a.distance! - b.distance!);
+            .filter(toll => typeof toll.distance === 'number' && toll.distance <= 20) // Filter within 20km
+            .sort((a, b) => a.distance! - b.distance!); // Sort by distance
 
           setNearbyTolls(filteredAndSortedTolls);
           setLoading(false);
           toast({
-            title: "Toll Booths Found",
+            title: "Location Found",
             description: `Found ${filteredAndSortedTolls.length} toll booths within 20km (driving distance).`,
           });
         } else {
-          setLocationError('No valid driving routes found to toll booths.');
+          setLocationError('No valid routes found to toll booths.');
           setLoading(false);
         }
       }
     );
   };
 
-  // Handler for selecting a toll booth
   const handleSelectToll = (tollId: string) => {
     onSelectToll(tollId);
     onClose();
@@ -234,7 +221,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
           </div>
         </CardHeader>
         <CardContent className="overflow-auto">
-          {/* Loading state */}
           {loading && (
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center space-x-2">
@@ -244,7 +230,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             </div>
           )}
 
-          {/* Location error state */}
           {locationError && (
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -257,7 +242,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             </div>
           )}
 
-          {/* No nearby tolls found state */}
           {!loading && !locationError && nearbyTolls.length === 0 && (
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -266,7 +250,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             </div>
           )}
 
-          {/* Display nearby tolls */}
           {!loading && !locationError && nearbyTolls.length > 0 && (
             <div className="space-y-3">
               {nearbyTolls.map((toll) => (
@@ -279,14 +262,10 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
                     <div className="flex-1">
                       <h4 className="font-medium text-highway-blue">{toll.name}</h4>
                       <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                        {/* Display distance if available */}
-                        {toll.distance !== undefined && (
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>{toll.distance.toFixed(1)} km away</span>
-                          </div>
-                        )}
-                        {/* Display duration if available */}
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="h-3 w-3" />
+                          <span>{toll.distance?.toFixed(1)} km away</span>
+                        </div>
                         {toll.duration !== undefined && (
                           <div className="flex items-center space-x-1">
                             <Clock className="h-3 w-3" />
