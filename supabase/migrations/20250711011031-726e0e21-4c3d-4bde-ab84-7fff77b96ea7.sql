@@ -3,7 +3,7 @@
 INSERT INTO public.toll_booths (name, highway, latitude, longitude, express_lane_fee) VALUES
 ('NHAI GIPL Thrissur Paliyekkara Toll Plaza', 'NH544', 10.5276, 76.2144, 55.00),
 ('Kumbkonam Toll Plaza', 'NH66', 11.2588, 75.7804, 50.00),
-('Walayar Toll Plaza', 'NH544', 10.7504, 76.7971, 60.00),
+('Walayar Toll Plaza', 'NH544', 10.8131, 76.7980, 60.00),
 ('Cherthala Toll Plaza', 'NH66', 9.6843, 76.3350, 45.00),
 ('Kochi Bypass Toll Plaza', 'NH66', 10.0889, 76.3480, 65.00),
 ('Kollam Bypass Toll Plaza', 'NH66', 8.8932, 76.6141, 50.00),
