@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,8 +18,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 };
@@ -101,7 +99,7 @@ const BookExpress = () => {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        maximumAge: 0 // Set to 0 to force a fresh reading every time
       }
     );
   };
@@ -321,7 +319,7 @@ const BookExpress = () => {
               {locationLoading && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center space-x-2">
-                    <Navigation className="h-4 w-4 text-blue-600 animate-spin" />
+                    <Navigation className="h-4 w-4 animate-spin" />
                     <span className="text-blue-700">Getting your location and finding nearby toll booths...</span>
                   </div>
                 </div>
