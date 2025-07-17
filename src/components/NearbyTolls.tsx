@@ -1,12 +1,10 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { MapPin, Navigation, Clock, X } from 'lucide-react';
-
-// Declare google as a global object
-declare const google: any;
 
 interface TollBooth {
   id: string;
@@ -16,11 +14,9 @@ interface TollBooth {
   latitude: number;
   longitude: number;
   distance?: number;
-  duration?: number; // Added duration in seconds
 }
 
 // Sample toll booth locations (in a real app, these would come from a database)
-// These are illustrative; actual data comes from Supabase in your BookExpress page.
 const TOLL_BOOTHS_WITH_LOCATIONS: TollBooth[] = [
   { 
     id: '1', 
@@ -77,18 +73,18 @@ interface NearbyTollsProps {
   onSelectToll: (tollId: string) => void;
 }
 
-// Haversine formula (commented out, as Google Distance Matrix will be used)
-// const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-//   const R = 6371; // Earth's radius in kilometers
-//   const dLat = (lat2 - lat1) * Math.PI / 180;
-//   const dLon = (lon2 - lon1) * Math.PI / 180;
-//   const a =
-//     Math.sin(dLat/2) * Math.sin(dLat/2) +
-//     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-//     Math.sin(dLon/2) * Math.sin(dLon/2);
-//   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-//   return R * c;
-// };
+// Calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
 const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -114,7 +110,25 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
       (position) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
-        fetchDistancesAndTimesFromGoogle(latitude, longitude); // Call Google API
+        
+        // Calculate distances and sort toll booths
+        const tollsWithDistance = TOLL_BOOTHS_WITH_LOCATIONS.map(toll => ({
+          ...toll,
+          distance: calculateDistance(latitude, longitude, toll.latitude, toll.longitude)
+        }));
+
+        // Sort by distance and filter tolls within 20km radius (updated from 50km)
+        const sortedTolls = tollsWithDistance
+          .filter(toll => toll.distance! <= 20)
+          .sort((a, b) => a.distance! - b.distance!);
+
+        setNearbyTolls(sortedTolls);
+        setLoading(false);
+
+        toast({
+          title: "Location Found",
+          description: `Found ${sortedTolls.length} toll booths within 20km`,
+        });
       },
       (error) => {
         setLocationError('Unable to retrieve your location');
@@ -133,72 +147,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
     );
   };
 
-  const fetchDistancesAndTimesFromGoogle = (userLat: number, userLng: number) => {
-    if (!google.maps || !google.maps.DistanceMatrixService) {
-      setLocationError("Google Maps API not loaded. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const service = new google.maps.DistanceMatrixService();
-    const origins = [{ lat: userLat, lng: userLng }];
-    const destinations = TOLL_BOOTHS_WITH_LOCATIONS.map(toll => ({
-      lat: toll.latitude,
-      lng: toll.longitude
-    }));
-
-    service.getDistanceMatrix(
-      {
-        origins: origins,
-        destinations: destinations,
-        travelMode: google.maps.TravelMode.DRIVING,
-        unitSystem: google.maps.UnitSystem.METRIC,
-        avoidHighways: false,
-        avoidTolls: false,
-      },
-      (response: any, status: any) => {
-        if (status !== 'OK') {
-          console.error('Error with Distance Matrix API', status, response);
-          setLocationError(`Error fetching distances: ${status}`);
-          setLoading(false);
-          return;
-        }
-
-        if (response.rows[0].elements) {
-          const updatedTolls = TOLL_BOOTHS_WITH_LOCATIONS.map((toll, index) => {
-            const element = response.rows[0].elements[index];
-            if (element.status === 'OK') {
-              // Convert meters to kilometers
-              const distance = element.distance.value / 1000;
-              // Duration is in seconds
-              const duration = element.duration.value; 
-              return {
-                ...toll,
-                distance: parseFloat(distance.toFixed(1)),
-                duration: duration
-              };
-            }
-            return { ...toll, distance: undefined, duration: undefined }; // Mark as undefined if no data
-          });
-
-          const filteredAndSortedTolls = updatedTolls
-            .filter(toll => typeof toll.distance === 'number' && toll.distance <= 20) // Filter within 20km
-            .sort((a, b) => a.distance! - b.distance!); // Sort by distance
-
-          setNearbyTolls(filteredAndSortedTolls);
-          setLoading(false);
-          toast({
-            title: "Location Found",
-            description: `Found ${filteredAndSortedTolls.length} toll booths within 20km (driving distance).`,
-          });
-        } else {
-          setLocationError('No valid routes found to toll booths.');
-          setLoading(false);
-        }
-      }
-    );
-  };
-
   const handleSelectToll = (tollId: string) => {
     onSelectToll(tollId);
     onClose();
@@ -212,7 +160,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div>
               <CardTitle className="text-highway-blue">Nearby Toll Booths</CardTitle>
               <CardDescription>
-                Toll booths within 20km of your current location (driving distance)
+                Toll booths within 20km of your current location
               </CardDescription>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose}>
@@ -225,7 +173,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center space-x-2">
                 <Navigation className="h-4 w-4 animate-spin" />
-                <span>Getting your location and calculating routes...</span>
+                <span>Getting your location...</span>
               </div>
             </div>
           )}
@@ -246,7 +194,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div className="text-center py-8">
               <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-600 mb-2">No Nearby Tolls</h3>
-              <p className="text-gray-500">No toll booths found within 20km of your location via driving routes.</p>
+              <p className="text-gray-500">No toll booths found within 20km of your location</p>
             </div>
           )}
 
@@ -266,12 +214,10 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
                           <MapPin className="h-3 w-3" />
                           <span>{toll.distance?.toFixed(1)} km away</span>
                         </div>
-                        {toll.duration !== undefined && (
-                          <div className="flex items-center space-x-1">
-                            <Clock className="h-3 w-3" />
-                            <span>~{Math.round(toll.duration / 60)} mins</span>
-                          </div>
-                        )}
+                        <div className="flex items-center space-x-1">
+                          <Clock className="h-3 w-3" />
+                          <span>~{Math.round((toll.distance! / 60) * 60)} mins</span>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
