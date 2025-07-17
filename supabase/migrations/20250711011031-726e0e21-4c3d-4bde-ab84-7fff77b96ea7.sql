@@ -19,4 +19,5 @@ INSERT INTO public.toll_booths (name, highway, latitude, longitude, express_lane
 ('Kottayam Toll Plaza', 'NH183', 9.5916, 76.5222, 50.00),
 ('Malappuram Toll Plaza', 'NH66', 11.0510, 76.0711, 45.00),
 ('Kasaragod Toll Plaza', 'NH66', 12.4996, 74.9869, 50.00),
+('panniyankara toll plaza', 'NH544', 10.5910, 76.4586, 200.00), 
 ('Wayanad Toll Plaza', 'NH766', 11.6854, 76.1320, 60.00);
