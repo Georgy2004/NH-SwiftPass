@@ -1,7 +1,7 @@
 
 -- Insert all major toll booths in Kerala
 INSERT INTO public.toll_booths (name, highway, latitude, longitude, express_lane_fee) VALUES
-('NHAI GIPL Thrissur Paliyekkara Toll Plaza', 'NH544', 10.5276, 76.2144, 55.00),
+('NHAI GIPL Thrissur Paliyekkara Toll Plaza', 'NH544', 10.4429, 76.2144, 55.00),
 ('Kumbkonam Toll Plaza', 'NH66', 11.2588, 75.7804, 50.00),
 ('Walayar Toll Plaza', 'NH544', 10.7504, 76.7971, 60.00),
 ('Cherthala Toll Plaza', 'NH66', 9.6843, 76.3350, 45.00),
