@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,10 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Car, ArrowLeft, MapPin, Clock, CreditCard, AlertTriangle, Navigation } from 'lucide-react';
-import dayjs from 'dayjs';
 
-// Declare google as a global object to avoid TypeScript errors
-declare const google: any;
+// Calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 
 interface TollBoothWithDistance {
   id: string;
@@ -22,9 +32,8 @@ interface TollBoothWithDistance {
   latitude: number;
   longitude: number;
   express_lane_fee: number;
-  distance?: number; // Driving distance in kilometers from Google Maps
-  duration?: number; // Driving duration in seconds from Google Maps
-  isSelectable: boolean; // Indicates if it's within the 5-20km range
+  distance: number;
+  isSelectable: boolean;
 }
 
 const BookExpress = () => {
@@ -33,51 +42,35 @@ const BookExpress = () => {
   const [searchParams] = useSearchParams();
   const [selectedToll, setSelectedToll] = useState('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [distance, setDistance] = useState<number | undefined>(undefined); // Precise driving distance
+  const [distance, setDistance] = useState(0);
   const [timeSlot, setTimeSlot] = useState('');
-  const [loading, setLoading] = useState(false); // For booking process
-  const [locationLoading, setLocationLoading] = useState(false); // For initial location and toll fetching
+  const [loading, setLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [availableTolls, setAvailableTolls] = useState<TollBoothWithDistance[]>([]);
-  const [isApiLoaded, setIsApiLoaded] = useState(false); // State to track Google Maps API loading
 
-  // Effect to check if Google Maps API is loaded
-  useEffect(() => {
-    const checkGoogleMaps = () => {
-      if (typeof google !== 'undefined' && google.maps && google.maps.DistanceMatrixService) {
-        setIsApiLoaded(true);
-      } else {
-        setTimeout(checkGoogleMaps, 500); // Retry after 500ms
-      }
-    };
-    checkGoogleMaps();
-  }, []);
-
-  // Effect to get user location and fetch tolls once API is loaded
   useEffect(() => {
     if (!user || user.role !== 'driver') {
       navigate('/login');
       return;
     }
 
-    if (isApiLoaded) {
-      getCurrentLocation();
-    }
+    // Get user's current location and fetch toll booths
+    getCurrentLocation();
 
     // Check if toll was pre-selected from URL
     const preSelectedToll = searchParams.get('toll');
     if (preSelectedToll) {
       setSelectedToll(preSelectedToll);
     }
-  }, [user, navigate, searchParams, isApiLoaded]);
+  }, [user, navigate, searchParams]);
 
-  // Function to get the user's current location
   const getCurrentLocation = () => {
     setLocationLoading(true);
 
     if (!navigator.geolocation) {
       toast({
         title: "Location Error",
-        description: "Geolocation is not supported by this browser.",
+        description: "Geolocation is not supported by this browser",
         variant: "destructive",
       });
       setLocationLoading(false);
@@ -89,31 +82,30 @@ const BookExpress = () => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
         
-        // Fetch toll booths and their distances using Google API
+        // Fetch toll booths after getting location
         fetchTollBooths(latitude, longitude);
         
         toast({
           title: "Location Found",
-          description: "Current location detected successfully.",
+          description: "Location detected successfully",
         });
       },
       (error) => {
         setLocationLoading(false);
         toast({
           title: "Location Error",
-          description: "Please enable location access to find nearby tolls.",
+          description: "Please enable location access to find nearby tolls",
           variant: "destructive",
         });
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000, // 10 seconds
+        timeout: 10000,
         maximumAge: 300000 // 5 minutes
       }
     );
   };
 
-  // Function to fetch toll booths from Supabase and calculate distances using Google Distance Matrix API
   const fetchTollBooths = async (userLat: number, userLng: number) => {
     try {
       const { data, error } = await supabase
@@ -124,211 +116,96 @@ const BookExpress = () => {
         console.error('Error fetching toll booths:', error);
         toast({
           title: "Error",
-          description: "Failed to load toll booths.",
+          description: "Failed to load toll booths",
           variant: "destructive",
         });
         setLocationLoading(false);
         return;
       }
 
-      const tollBoothsFromDB = data || [];
-
-      if (!isApiLoaded) {
-        toast({
-          title: "Google Maps Error",
-          description: "Google Maps API not loaded. Cannot calculate precise distances.",
-          variant: "destructive",
-        });
-        setLocationLoading(false);
-        // If API is not loaded, make tolls unselectable as distance cannot be verified
-        setAvailableTolls(tollBoothsFromDB.map(toll => ({
+      // Calculate distances and sort by distance
+      const tollsWithDistance: TollBoothWithDistance[] = (data || []).map(toll => {
+        const tollDistance = calculateDistance(userLat, userLng, toll.latitude, toll.longitude);
+        return {
           ...toll,
-          distance: undefined,
-          duration: undefined,
-          isSelectable: false 
-        })));
-        return;
-      }
+          distance: tollDistance,
+          isSelectable: tollDistance >= 5 && tollDistance <= 20
+        };
+      });
 
-      const service = new google.maps.DistanceMatrixService();
-      const origins = [{ lat: userLat, lng: userLng }];
-      const destinations = tollBoothsFromDB.map(toll => ({
-        lat: toll.latitude,
-        lng: toll.longitude
-      }));
+      // Sort by distance and take only the first 5
+      const sortedTolls = tollsWithDistance
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 5);
 
-      service.getDistanceMatrix(
-        {
-          origins: origins,
-          destinations: destinations,
-          travelMode: google.maps.TravelMode.DRIVING,
-          unitSystem: google.maps.UnitSystem.METRIC,
-          avoidHighways: false,
-          avoidTolls: false,
-        },
-        (response: google.maps.DistanceMatrixResponse | null, status: google.maps.DistanceMatrixStatus) => {
-          if (status !== 'OK' || !response) {
-            console.error('Error with Distance Matrix API:', status, response);
-            toast({
-              title: "Error",
-              description: `Failed to fetch toll distances: ${status}.`,
-              variant: "destructive",
-            });
-            setLocationLoading(false);
-            return;
-          }
+      setAvailableTolls(sortedTolls);
+      setLocationLoading(false);
 
-          if (response.rows[0] && response.rows[0].elements) {
-            const tollsWithDistance: TollBoothWithDistance[] = tollBoothsFromDB.map((toll, index) => {
-              const element = response.rows[0].elements[index];
-              if (element.status === 'OK' && element.distance && element.duration) {
-                const calculatedDistance = element.distance.value / 1000; // meters to km
-                const calculatedDuration = element.duration.value; // seconds
-                return {
-                  ...toll,
-                  distance: parseFloat(calculatedDistance.toFixed(1)),
-                  duration: calculatedDuration,
-                  isSelectable: calculatedDistance >= 5 && calculatedDistance <= 20 // Check if within 5-20km range
-                };
-              }
-              return { ...toll, distance: undefined, duration: undefined, isSelectable: false };
-            });
-
-            // Filter out tolls that couldn't be calculated and sort by distance, then take top 5
-            const sortedTolls = tollsWithDistance
-              .filter(toll => typeof toll.distance === 'number')
-              .sort((a, b) => a.distance! - b.distance!)
-              .slice(0, 5); 
-
-            setAvailableTolls(sortedTolls);
-            setLocationLoading(false);
-
-            const selectableTolls = sortedTolls.filter(toll => toll.isSelectable);
-            toast({
-              title: "Toll Booths Found",
-              description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km driving distance).`,
-            });
-          } else {
-            toast({
-              title: "Error",
-              description: "No valid driving routes found to toll booths.",
-              variant: "destructive",
-            });
-            setLocationLoading(false);
-          }
-        }
-      );
+      const selectableTolls = sortedTolls.filter(toll => toll.isSelectable);
+      toast({
+        title: "Toll Booths Found",
+        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km)`,
+      });
     } catch (error) {
       console.error('Error in fetchTollBooths:', error);
       setLocationLoading(false);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while fetching tolls.",
-        variant: "destructive",
-      });
     }
   };
 
-  // Effect to update distance and time slot when selectedToll, userLocation, or availableTolls change
   useEffect(() => {
-    const updateSelectedTollDetails = () => {
-      if (selectedToll && userLocation && availableTolls.length > 0 && isApiLoaded) {
-        const currentSelectedTollData = availableTolls.find(t => t.id === selectedToll);
-        if (currentSelectedTollData && currentSelectedTollData.distance !== undefined && currentSelectedTollData.duration !== undefined) {
-          // Use the already calculated distance and duration from availableTolls
-          setDistance(currentSelectedTollData.distance);
-
-          // Calculate time slot based on accurate duration
-          const currentTime = dayjs();
-          const arrivalTime = currentTime.add(currentSelectedTollData.duration, 'second');
-          const endTime = arrivalTime.add(10, 'minute'); // 10 minute window
-          
-          const startTimeStr = arrivalTime.format('hh:mm A');
-          const endTimeStr = endTime.format('hh:mm A');
-          
-          setTimeSlot(`${startTimeStr} - ${endTimeStr}`);
-        } else if (currentSelectedTollData && userLocation) {
-          // If for some reason distance/duration is missing for selected toll, re-fetch it
-          const service = new google.maps.DistanceMatrixService();
-          service.getDistanceMatrix(
-            {
-              origins: [{ lat: userLocation.lat, lng: userLocation.lng }],
-              destinations: [{ lat: currentSelectedTollData.latitude, lng: currentSelectedTollData.longitude }],
-              travelMode: google.maps.TravelMode.DRIVING,
-              unitSystem: google.maps.UnitSystem.METRIC,
-              avoidHighways: false,
-              avoidTolls: false,
-            },
-            (response: google.maps.DistanceMatrixResponse | null, status: google.maps.DistanceMatrixStatus) => {
-              if (status === 'OK' && response && response.rows[0].elements[0].status === 'OK') {
-                const element = response.rows[0].elements[0];
-                const calculatedDistance = element.distance.value / 1000; // meters to km
-                const calculatedDurationSeconds = element.duration.value; // seconds
-
-                setDistance(parseFloat(calculatedDistance.toFixed(2)));
-
-                const currentTime = dayjs();
-                const arrivalTime = currentTime.add(calculatedDurationSeconds, 'second');
-                const endTime = arrivalTime.add(10, 'minute');
-                
-                const startTimeStr = arrivalTime.format('hh:mm A');
-                const endTimeStr = endTime.format('hh:mm A');
-                
-                setTimeSlot(`${startTimeStr} - ${endTimeStr}`);
-              } else {
-                console.error('Error fetching single toll distance:', status, response);
-                setDistance(undefined);
-                setTimeSlot('');
-                toast({
-                  title: "Distance Error",
-                  description: "Could not calculate precise distance for selected toll.",
-                  variant: "destructive",
-                });
-              }
-            }
-          );
-        }
-      } else {
-        setDistance(undefined);
-        setTimeSlot('');
+    if (selectedToll && userLocation && availableTolls.length > 0) {
+      const selectedTollData = availableTolls.find(t => t.id === selectedToll);
+      if (selectedTollData) {
+        setDistance(selectedTollData.distance);
       }
-    };
+    }
+  }, [selectedToll, userLocation, availableTolls]);
 
-    updateSelectedTollDetails();
-  }, [selectedToll, userLocation, availableTolls, isApiLoaded]);
+  useEffect(() => {
+    if (distance && distance > 0) {
+      // Calculate time slot based on distance
+      const currentTime = new Date();
+      const travelTimeMinutes = distance * 2; // 2 minutes per km
+      const arrivalTime = new Date(currentTime.getTime() + travelTimeMinutes * 60000);
+      const endTime = new Date(arrivalTime.getTime() + 10 * 60000); // 10 minute window
+      
+      const startTimeStr = arrivalTime.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      const endTimeStr = endTime.toLocaleTimeString('en-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      
+      setTimeSlot(`${startTimeStr} - ${endTimeStr}`);
+    } else {
+      setTimeSlot('');
+    }
+  }, [distance]);
 
   const selectedTollData = availableTolls.find(t => t.id === selectedToll);
   const totalAmount = selectedTollData ? 75 + selectedTollData.express_lane_fee : 0;
   const canAfford = user && user.balance && user.balance >= totalAmount;
-  // Check isInRange based on the precise distance obtained from Google Maps
-  const isInRange = selectedTollData ? (distance !== undefined && distance >= 5 && distance <= 20) : false; 
+  const isInRange = selectedTollData ? selectedTollData.isSelectable : false;
 
-  // Handler for booking the express lane
   const handleBooking = async () => {
-    // Ensure all necessary data is available and conditions are met
-    if (!selectedTollData || distance === undefined || !timeSlot || !canAfford || !isInRange || !user) {
-      toast({
-        title: "Booking Not Possible",
-        description: "Please ensure a toll is selected, you are in range, and have sufficient balance.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!selectedTollData || !distance || !timeSlot || !canAfford || !isInRange || !user) return;
 
     setLoading(true);
     
     try {
-      console.log('Attempting to create booking with data:', {
+      console.log('Creating booking with data:', {
         user_id: user.id,
         toll_booth_id: selectedTollData.id,
-        booking_date: new Date().toISOString().split('T')[0], // Current date
+        booking_date: new Date().toISOString().split('T')[0],
         time_slot: timeSlot,
         distance_from_toll: parseFloat(distance.toFixed(2)),
         amount: totalAmount,
         status: 'confirmed'
       });
 
-      // Insert booking into Supabase
+      // Create booking in Supabase
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -344,7 +221,7 @@ const BookExpress = () => {
         .single();
 
       if (bookingError) {
-        console.error('Booking insertion error:', bookingError);
+        console.error('Booking error:', bookingError);
         toast({
           title: "Booking Failed",
           description: `Error: ${bookingError.message}`,
@@ -355,7 +232,7 @@ const BookExpress = () => {
 
       console.log('Booking created successfully:', bookingData);
 
-      // Update user balance using the Supabase RPC function
+      // Update user balance using the Supabase function
       const { data: balanceResult, error: balanceError } = await supabase
         .rpc('update_user_balance', {
           user_uuid: user.id,
@@ -371,7 +248,7 @@ const BookExpress = () => {
           variant: "destructive",
         });
       } else {
-        // Update local balance state in AuthContext
+        // Update local balance
         updateBalance(-totalAmount);
       }
 
@@ -380,9 +257,9 @@ const BookExpress = () => {
         description: `Express lane booked for ${selectedTollData.name}. Time slot: ${timeSlot}`,
       });
 
-      navigate('/driver'); // Redirect to driver dashboard after successful booking
+      navigate('/driver');
     } catch (error) {
-      console.error('An unexpected error occurred during booking:', error);
+      console.error('Booking error:', error);
       toast({
         title: "Booking Failed",
         description: "Something went wrong. Please try again.",
@@ -393,7 +270,6 @@ const BookExpress = () => {
     }
   };
 
-  // Render nothing if user is not authenticated (handled by AuthContext redirect)
   if (!user) return null;
 
   return (
@@ -431,7 +307,7 @@ const BookExpress = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Current Balance Display */}
+              {/* Current Balance */}
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <div className="flex items-center justify-between">
                   <span className="text-green-700">Current Balance:</span>
@@ -441,7 +317,7 @@ const BookExpress = () => {
                 </div>
               </div>
 
-              {/* Location Loading/Status */}
+              {/* Location Status */}
               {locationLoading && (
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center space-x-2">
@@ -456,25 +332,19 @@ const BookExpress = () => {
                   <div className="flex items-center space-x-2">
                     <MapPin className="h-4 w-4 text-green-600" />
                     <span className="text-green-700">
-                      Location found! Showing 5 nearest toll booths (driving distance)
+                      Location found! Showing 5 nearest toll booths
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Toll Selection Dropdown */}
+              {/* Toll Selection */}
               <div className="space-y-2">
-                <Label htmlFor="tollBooth">Select Toll Booth (5 Nearest - Driving Distance Order)</Label>
-                <Select 
-                  value={selectedToll} 
-                  onValueChange={setSelectedToll} 
-                  disabled={availableTolls.length === 0 || !isApiLoaded || locationLoading}
-                >
+                <Label htmlFor="tollBooth">Select Toll Booth (5 Nearest - Distance Order)</Label>
+                <Select value={selectedToll} onValueChange={setSelectedToll} disabled={availableTolls.length === 0}>
                   <SelectTrigger>
                     <SelectValue placeholder={
-                      locationLoading ? "Finding nearest toll booths..." :
-                      !isApiLoaded ? "Loading Maps API..." :
-                      availableTolls.length === 0 ? "No toll booths found or API not loaded" :
+                      availableTolls.length === 0 ? "Finding nearest toll booths..." :
                       "Choose from 5 nearest toll booths"
                     } />
                   </SelectTrigger>
@@ -483,15 +353,14 @@ const BookExpress = () => {
                       <SelectItem 
                         key={toll.id} 
                         value={toll.id}
-                        disabled={!toll.isSelectable} // Disable if outside booking range
+                        disabled={!toll.isSelectable}
                         className={!toll.isSelectable ? "opacity-50" : ""}
                       >
                         <div className="flex justify-between items-center w-full">
                           <div className="flex flex-col">
                             <span className="font-medium">{toll.name}</span>
                             <span className="text-xs text-gray-500">
-                              {/* Display distance if available */}
-                              {toll.distance !== undefined ? `${toll.distance.toFixed(1)} km away` : 'N/A km'} • {toll.highway}
+                              {toll.distance.toFixed(1)} km away • {toll.highway}
                               {!toll.isSelectable && " • Outside booking range"}
                             </span>
                           </div>
@@ -501,8 +370,7 @@ const BookExpress = () => {
                               <Badge variant="secondary" className="ml-2 text-xs">Available</Badge>
                             ) : (
                               <Badge variant="destructive" className="ml-2 text-xs">
-                                {/* More specific message for out-of-range tolls */}
-                                {toll.distance !== undefined && toll.distance < 5 ? "Too Close" : "Too Far"}
+                                {toll.distance < 5 ? "Too Close" : "Too Far"}
                               </Badge>
                             )}
                           </div>
@@ -513,26 +381,26 @@ const BookExpress = () => {
                 </Select>
                 {availableTolls.length > 0 && (
                   <p className="text-sm text-gray-600">
-                    Only toll booths within 5-20 km driving distance can be selected for booking.
+                    Only toll booths within 5-20 km range can be selected for booking.
                   </p>
                 )}
               </div>
 
               {/* Auto-calculated Distance Display */}
-              {selectedToll && distance !== undefined && (
+              {selectedToll && distance > 0 && (
                 <div className="space-y-2">
-                  <Label>Driving Distance from Toll Booth</Label>
+                  <Label>Distance from Toll Booth</Label>
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center space-x-2">
                       <MapPin className="h-4 w-4 text-blue-600" />
                       <span className="font-medium text-blue-700">{distance.toFixed(2)} km</span>
                     </div>
                     <p className="text-sm text-blue-600 mt-1">
-                      Automatically calculated from your current location (via driving route)
+                      Automatically calculated from your current location
                     </p>
                     {!isInRange && (
                       <p className="text-sm text-red-600 mt-1">
-                        You must be within 5-20 km driving distance to book express lane
+                        You must be within 5-20 km radius to book express lane
                       </p>
                     )}
                   </div>
@@ -591,7 +459,7 @@ const BookExpress = () => {
               )}
 
               {/* Distance Range Warning */}
-              {selectedToll && distance !== undefined && !isInRange && (
+              {selectedToll && distance > 0 && !isInRange && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <AlertTriangle className="h-4 w-4 text-red-600" />
@@ -600,7 +468,7 @@ const BookExpress = () => {
                     </span>
                   </div>
                   <p className="text-sm text-red-600 mt-1">
-                    You must be within 5-20 km driving distance to book express lane. Current distance: {distance.toFixed(2)} km
+                    You must be within 5-20 km radius to book express lane. Current distance: {distance.toFixed(2)} km
                   </p>
                 </div>
               )}
@@ -609,8 +477,7 @@ const BookExpress = () => {
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <h4 className="font-medium text-yellow-800 mb-2">Important Notes:</h4>
                 <ul className="text-sm text-yellow-700 space-y-1">
-                  <li>• Ensure sufficient account balance</li>
-                  <li>• You must be within 5-20 km driving distance to book express lane</li>
+                  <li>• You must be within 5-20 km radius to book express lane</li>
                   <li>• You must reach the toll booth within your allocated time slot</li>
                   <li>• Use only the EXPRESS lane marked with AI cameras</li>
                   <li>• Partial refund available if you use regular FASTag lane</li>
@@ -621,13 +488,11 @@ const BookExpress = () => {
               {/* Book Button */}
               <Button
                 onClick={handleBooking}
-                disabled={!selectedToll || distance === undefined || !timeSlot || !canAfford || loading || !isInRange || !userLocation || !isApiLoaded}
+                disabled={!selectedToll || !distance || !timeSlot || !canAfford || loading || !isInRange || !userLocation}
                 className="w-full express-gradient text-white py-3 text-lg"
               >
                 {loading ? "Processing Booking..." : 
-                 !isApiLoaded ? "Loading Maps API..." :
                  !userLocation ? "Getting Location..." :
-                 distance === undefined ? "Calculating Distance..." :
                  !isInRange ? "Invalid Distance Range" :
                  `Book Express Lane - ₹${totalAmount}`}
               </Button>
