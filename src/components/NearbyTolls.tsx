@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { MapPin, Navigation, Clock, X } from 'lucide-react';
+import.meta.env.VITE_Maps_API_KEY.
 
 interface TollBooth {
   id: string;
