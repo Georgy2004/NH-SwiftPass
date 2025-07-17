@@ -1,76 +1,19 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { MapPin, Navigation, Clock, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
 
 interface TollBooth {
   id: string;
   name: string;
-  baseFee: number;
-  expressCharge: number;
+  highway: string; // Added from Supabase schema
+  express_lane_fee: number; // Changed from expressCharge to match DB
   latitude: number;
   longitude: number;
   distance?: number;
-}
-
-// Sample toll booth locations (in a real app, these would come from a database)
-const TOLL_BOOTHS_WITH_LOCATIONS: TollBooth[] = [
-  { 
-    id: '1', 
-    name: 'Mumbai-Pune Expressway - Khopoli', 
-    baseFee: 85, 
-    expressCharge: 50,
-    latitude: 18.7537,
-    longitude: 73.4893
-  },
-  { 
-    id: '2', 
-    name: 'Delhi-Gurgaon - Sirhaul', 
-    baseFee: 45, 
-    expressCharge: 30,
-    latitude: 28.4595,
-    longitude: 77.0266
-  },
-  { 
-    id: '3', 
-    name: 'Chennai-Bangalore - Krishnagiri', 
-    baseFee: 95, 
-    expressCharge: 60,
-    latitude: 12.5266,
-    longitude: 78.2140
-  },
-  { 
-    id: '4', 
-    name: 'Hyderabad-Vijayawada - Panthangi', 
-    baseFee: 75, 
-    expressCharge: 45,
-    latitude: 16.4419,
-    longitude: 80.1761
-  },
-  { 
-    id: '5', 
-    name: 'Ahmedabad-Mumbai - Vadodara', 
-    baseFee: 65, 
-    expressCharge: 40,
-    latitude: 22.3072,
-    longitude: 73.1812
-  },
-  { 
-    id: '6', 
-    name: 'NHAI GIPL Thrissur Paliyekkara Toll Plaza', 
-    baseFee: 80, 
-    expressCharge: 55,
-    latitude: 10.5276,
-    longitude: 76.2144
-  },
-];
-
-interface NearbyTollsProps {
-  onClose: () => void;
-  onSelectToll: (tollId: string) => void;
 }
 
 // Calculate distance between two coordinates using Haversine formula
@@ -80,11 +23,15 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 };
+
+interface NearbyTollsProps {
+  onClose: () => void;
+  onSelectToll: (tollId: string) => void;
+}
 
 const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -111,23 +58,12 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
         const { latitude, longitude } = position.coords;
         setUserLocation({ lat: latitude, lng: longitude });
         
-        // Calculate distances and sort toll booths
-        const tollsWithDistance = TOLL_BOOTHS_WITH_LOCATIONS.map(toll => ({
-          ...toll,
-          distance: calculateDistance(latitude, longitude, toll.latitude, toll.longitude)
-        }));
-
-        // Sort by distance and filter tolls within 20km radius (updated from 50km)
-        const sortedTolls = tollsWithDistance
-          .filter(toll => toll.distance! <= 20)
-          .sort((a, b) => a.distance! - b.distance!);
-
-        setNearbyTolls(sortedTolls);
-        setLoading(false);
-
+        // Fetch toll booths after getting location
+        fetchTollBooths(latitude, longitude);
+        
         toast({
           title: "Location Found",
-          description: `Found ${sortedTolls.length} toll booths within 20km`,
+          description: "Location detected successfully",
         });
       },
       (error) => {
@@ -147,10 +83,68 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
     );
   };
 
+  const fetchTollBooths = async (userLat: number, userLng: number) => {
+    try {
+      const { data, error } = await supabase
+        .from('toll_booths')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching toll booths:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load toll booths from database",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Calculate distances and filter/sort
+      const tollsWithDistance: TollBooth[] = (data || []).map(toll => {
+        const tollDistance = calculateDistance(userLat, userLng, toll.latitude, toll.longitude);
+        return {
+          id: toll.id,
+          name: toll.name,
+          highway: toll.highway, // Map highway
+          express_lane_fee: toll.express_lane_fee,
+          latitude: toll.latitude,
+          longitude: toll.longitude,
+          distance: tollDistance
+        };
+      });
+
+      // Sort by distance and filter tolls within 20km radius
+      const sortedTolls = tollsWithDistance
+        .filter(toll => toll.distance! <= 20)
+        .sort((a, b) => a.distance! - b.distance!);
+
+      setNearbyTolls(sortedTolls);
+      setLoading(false);
+
+      toast({
+        title: "Toll Booths Found",
+        description: `Found ${sortedTolls.length} toll booths within 20km`,
+      });
+    } catch (error) {
+      console.error('Error in fetchTollBooths from Supabase:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while fetching tolls.",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  };
+
   const handleSelectToll = (tollId: string) => {
     onSelectToll(tollId);
     onClose();
   };
+
+  // Assuming a base fee of ₹75 for consistency with BookExpress.tsx
+  // In a real application, this should ideally be part of the toll_booths table if dynamic.
+  const BASE_TOLL_FEE = 75; 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -173,7 +167,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center space-x-2">
                 <Navigation className="h-4 w-4 animate-spin" />
-                <span>Getting your location...</span>
+                <span>Getting your location and finding nearby toll booths...</span>
               </div>
             </div>
           )}
@@ -209,6 +203,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <h4 className="font-medium text-highway-blue">{toll.name}</h4>
+                      <p className="text-sm text-gray-600">{toll.highway}</p> {/* Display highway */}
                       <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
                         <div className="flex items-center space-x-1">
                           <MapPin className="h-3 w-3" />
@@ -216,16 +211,17 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
                         </div>
                         <div className="flex items-center space-x-1">
                           <Clock className="h-3 w-3" />
-                          <span>~{Math.round((toll.distance! / 60) * 60)} mins</span>
+                          {/* Assuming average speed of 30 km/hr for time calculation */}
+                          <span>~{Math.round((toll.distance! / 30) * 60)} mins</span> 
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <Badge variant="secondary" className="mb-2">
-                        ₹{toll.baseFee + toll.expressCharge}
+                        ₹{BASE_TOLL_FEE + toll.express_lane_fee}
                       </Badge>
                       <p className="text-xs text-gray-500">
-                        Base: ₹{toll.baseFee} + Express: ₹{toll.expressCharge}
+                        Base: ₹{BASE_TOLL_FEE} + Express: ₹{toll.express_lane_fee}
                       </p>
                     </div>
                   </div>
