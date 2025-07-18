@@ -108,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string, selectedRole?: 'admin' | 'driver'): Promise<boolean> => {
     try {
       setLoading(true);
       console.log('Attempting login for:', email);
@@ -135,6 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Wait for the profile to be fetched before resolving
         const userProfile = await fetchUserProfile(data.user.id);
         if (userProfile) {
+          if (selectedRole && userProfile.role !== selectedRole) {
+            toast({
+              title: "Login Failed",
+              description: `Role mismatch: You tried to login as '${selectedRole}' but your account is '${userProfile.role}'.`,
+              variant: "destructive",
+            });
+            await supabase.auth.signOut(); // <-- Add this line
+            setLoading(false);
+            return false;
+          }
           setUser(userProfile);
           setSession(data.session);
           setLoading(false);
