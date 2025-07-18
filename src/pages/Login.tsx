@@ -45,7 +45,7 @@ const Login = () => {
 
     try {
       console.log('Login form submitted for:', email, 'as', role);
-      const success = await login(email, password); // Remove role argument
+      const success = await login(email, password, role); // Pass role
       
       if (success) {
         setLoginSuccess(true); // Trigger useEffect for navigation and toast
