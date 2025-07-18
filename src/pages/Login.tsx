@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,14 +15,26 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'admin' | 'driver'>('driver');
   const [loading, setLoading] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false); // Track login success
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
-  if (user) {
+  if (user && !loginSuccess) {
     navigate(user.role === 'admin' ? '/admin' : '/driver');
     return null;
   }
+
+  useEffect(() => {
+    if (loginSuccess && user) {
+      toast({
+        title: "Login Successful",
+        description: `Welcome back! Redirecting to ${user.role} dashboard.`,
+      });
+      navigate(user.role === 'admin' ? '/admin' : '/driver');
+      setLoginSuccess(false); // Reset for next login
+    }
+  }, [loginSuccess, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,24 +44,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      console.log('Login form submitted for:', email);
-      const success = await login(email, password);
+      console.log('Login form submitted for:', email, 'as', role);
+      const success = await login(email, password, role); // Pass role
       
       if (success) {
-        console.log('Login successful, navigating to dashboard');
-        toast({
-          title: "Login Successful",
-          description: `Welcome back! Redirecting to ${role} dashboard.`,
-        });
-        
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          navigate(role === 'admin' ? '/admin' : '/driver');
-        }, 500);
+        setLoginSuccess(true); // Trigger useEffect for navigation and toast
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid email or password. Please try again.",
+          description: "Invalid email, password, or role. Please try again.",
           variant: "destructive",
         });
       }
