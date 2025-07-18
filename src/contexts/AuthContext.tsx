@@ -15,7 +15,7 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   session: Session | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, selectedRole?: 'admin' | 'driver') => Promise<boolean>;
   register: (email: string, password: string, role: 'admin' | 'driver', licensePlate?: string) => Promise<boolean>;
   logout: () => void;
   updateBalance: (amount: number) => void;
