@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { MapPin, Navigation, Clock, X } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client'; // Import Supabase client
+import { supabase } from '@/integrations/supabase/client';
+import { calculateAccurateDistance, DistanceResult } from '@/utils/distanceCalculator';
 
 interface TollBooth {
   id: string;
@@ -16,17 +17,7 @@ interface TollBooth {
   distance?: number;
 }
 
-// Calculate distance between two coordinates using Haversine formula
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+// This file now uses Google Maps API for accurate distance calculation
 
 interface NearbyTollsProps {
   onClose: () => void;
@@ -100,17 +91,33 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
         return;
       }
 
-      // Calculate distances and filter/sort
-      const tollsWithDistance: TollBooth[] = (data || []).map(toll => {
-        const tollDistance = calculateDistance(userLat, userLng, toll.latitude, toll.longitude);
+      if (!data || data.length === 0) {
+        setNearbyTolls([]);
+        setLoading(false);
+        return;
+      }
+
+      // Prepare destinations for Google Maps API
+      const destinations = data.map(toll => ({
+        lat: toll.latitude,
+        lng: toll.longitude,
+        id: toll.id
+      }));
+
+      // Calculate accurate distances using Google Maps API
+      const distanceResults = await calculateAccurateDistance(userLat, userLng, destinations);
+
+      // Map toll booths with accurate distance data
+      const tollsWithDistance: TollBooth[] = data.map(toll => {
+        const distanceData = distanceResults[toll.id];
         return {
           id: toll.id,
           name: toll.name,
-          highway: toll.highway, // Map highway
+          highway: toll.highway,
           express_lane_fee: toll.express_lane_fee,
           latitude: toll.latitude,
           longitude: toll.longitude,
-          distance: tollDistance
+          distance: distanceData.distance
         };
       });
 
@@ -122,9 +129,12 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
       setNearbyTolls(sortedTolls);
       setLoading(false);
 
+      // Check if any distances used fallback calculations
+      const hasErrors = Object.values(distanceResults).some(result => result.error);
+      
       toast({
         title: "Toll Booths Found",
-        description: `Found ${sortedTolls.length} toll booths within 20km`,
+        description: `Found ${sortedTolls.length} toll booths within 20km${hasErrors ? ' (using GPS-accurate routing)' : ' (using road distance)'}`,
       });
     } catch (error) {
       console.error('Error in fetchTollBooths from Supabase:', error);

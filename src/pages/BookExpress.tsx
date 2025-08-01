@@ -11,19 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Car, ArrowLeft, MapPin, Clock, CreditCard, AlertTriangle, Navigation } from 'lucide-react';
+import { calculateAccurateDistance, DistanceResult } from '@/utils/distanceCalculator';
 
-// Calculate distance between two coordinates using Haversine formula
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+// This file now uses Google Maps API for accurate distance calculation
 
 interface TollBoothWithDistance {
   id: string;
@@ -33,7 +23,9 @@ interface TollBoothWithDistance {
   longitude: number;
   express_lane_fee: number;
   distance: number;
+  duration: number; // in minutes
   isSelectable: boolean;
+  distanceError?: string;
 }
 
 const BookExpress = () => {
@@ -123,13 +115,31 @@ const BookExpress = () => {
         return;
       }
 
-      // Calculate distances and sort by distance
-      const tollsWithDistance: TollBoothWithDistance[] = (data || []).map(toll => {
-        const tollDistance = calculateDistance(userLat, userLng, toll.latitude, toll.longitude);
+      if (!data || data.length === 0) {
+        setAvailableTolls([]);
+        setLocationLoading(false);
+        return;
+      }
+
+      // Prepare destinations for Google Maps API
+      const destinations = data.map(toll => ({
+        lat: toll.latitude,
+        lng: toll.longitude,
+        id: toll.id
+      }));
+
+      // Calculate accurate distances using Google Maps API
+      const distanceResults = await calculateAccurateDistance(userLat, userLng, destinations);
+
+      // Map toll booths with accurate distance data
+      const tollsWithDistance: TollBoothWithDistance[] = data.map(toll => {
+        const distanceData = distanceResults[toll.id];
         return {
           ...toll,
-          distance: tollDistance,
-          isSelectable: tollDistance >= 5 && tollDistance <= 20
+          distance: distanceData.distance,
+          duration: distanceData.duration,
+          isSelectable: distanceData.distance >= 5 && distanceData.distance <= 20,
+          distanceError: distanceData.error
         };
       });
 
@@ -142,9 +152,11 @@ const BookExpress = () => {
       setLocationLoading(false);
 
       const selectableTolls = sortedTolls.filter(toll => toll.isSelectable);
+      const hasErrors = sortedTolls.some(toll => toll.distanceError);
+      
       toast({
         title: "Toll Booths Found",
-        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km)`,
+        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km)${hasErrors ? ' (using GPS-accurate routing)' : ' (using road distance)'}`,
       });
     } catch (error) {
       console.error('Error in fetchTollBooths:', error);
@@ -161,11 +173,13 @@ const BookExpress = () => {
     }
   }, [selectedToll, userLocation, availableTolls]);
 
+  const selectedTollData = availableTolls.find(t => t.id === selectedToll);
+  
   useEffect(() => {
-    if (distance && distance > 0) {
-      // Calculate time slot based on distance
+    if (distance && distance > 0 && selectedTollData) {
+      // Calculate time slot based on accurate travel time from Google Maps
       const currentTime = new Date();
-      const travelTimeMinutes = distance * 2; // 2 minutes per km
+      const travelTimeMinutes = selectedTollData.duration || (distance * 2); // Use Google Maps duration or fallback
       const arrivalTime = new Date(currentTime.getTime() + travelTimeMinutes * 60000);
       const endTime = new Date(arrivalTime.getTime() + 10 * 60000); // 10 minute window
       
@@ -182,9 +196,7 @@ const BookExpress = () => {
     } else {
       setTimeSlot('');
     }
-  }, [distance]);
-
-  const selectedTollData = availableTolls.find(t => t.id === selectedToll);
+  }, [distance, selectedTollData]);
   const totalAmount = selectedTollData ? 75 + selectedTollData.express_lane_fee : 0;
   const canAfford = user && user.balance && user.balance >= totalAmount;
   const isInRange = selectedTollData ? selectedTollData.isSelectable : false;
@@ -360,8 +372,9 @@ const BookExpress = () => {
                           <div className="flex flex-col">
                             <span className="font-medium">{toll.name}</span>
                             <span className="text-xs text-gray-500">
-                              {toll.distance.toFixed(1)} km away • {toll.highway}
+                              {toll.distance.toFixed(1)} km away • {Math.round(toll.duration)} min drive • {toll.highway}
                               {!toll.isSelectable && " • Outside booking range"}
+                              {toll.distanceError && " • GPS routing"}
                             </span>
                           </div>
                           <div className="ml-4 text-right">
