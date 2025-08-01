@@ -25,6 +25,8 @@ serve(async (req) => {
       destinations: destinations.join('|'),
       units: 'metric',
       mode: 'driving',
+      departure_time: 'now', // For real-time traffic
+      traffic_model: 'best_guess', // Consider current traffic conditions
       key: GOOGLE_MAPS_API_KEY
     })
 
