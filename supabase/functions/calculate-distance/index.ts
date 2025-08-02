@@ -1,4 +1,3 @@
-// @ts-nocheck - Disable TypeScript checking for this Deno file
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
@@ -19,7 +18,7 @@ serve(async (req) => {
       throw new Error('Google Maps API key not configured')
     }
 
-    // Construct the Distance Matrix API URL with enhanced parameters
+    // Construct the Distance Matrix API URL
     const baseUrl = 'https://maps.googleapis.com/maps/api/distancematrix/json'
     const params = new URLSearchParams({
       origins: origins.join('|'),
@@ -28,29 +27,11 @@ serve(async (req) => {
       mode: 'driving',
       departure_time: 'now', // For real-time traffic
       traffic_model: 'best_guess', // Consider current traffic conditions
-      region: 'in', // India region bias for better accuracy
-      language: 'en', // English language
       key: GOOGLE_MAPS_API_KEY
     })
 
-    // Log request details for debugging
-    console.log('Distance Matrix API Request:', {
-      origins,
-      destinations,
-      url: `${baseUrl}?${params}`,
-      timestamp: new Date().toISOString()
-    });
-
     const response = await fetch(`${baseUrl}?${params}`)
     const data = await response.json()
-
-    // Log response for debugging
-    console.log('Distance Matrix API Response:', {
-      status: data.status,
-      error_message: data.error_message,
-      results_count: data.rows?.[0]?.elements?.length || 0,
-      timestamp: new Date().toISOString()
-    });
 
     if (data.status !== 'OK') {
       throw new Error(`Google Maps API error: ${data.error_message || data.status}`)
