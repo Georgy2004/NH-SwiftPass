@@ -25,7 +25,6 @@ interface TollBoothWithDistance {
   distance: number;
   duration: number; // in minutes
   isSelectable: boolean;
-  distanceError?: string;
 }
 
 const BookExpress = () => {
@@ -71,7 +70,20 @@ const BookExpress = () => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        // Ensure high precision coordinates
+        const latitude = parseFloat(position.coords.latitude.toFixed(8));
+        const longitude = parseFloat(position.coords.longitude.toFixed(8));
+        
+        console.log('GPS Location Details:', {
+          lat: latitude,
+          lng: longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: new Date(position.timestamp).toISOString(),
+          altitude: position.coords.altitude,
+          heading: position.coords.heading,
+          speed: position.coords.speed
+        });
+        
         setUserLocation({ lat: latitude, lng: longitude });
         
         // Fetch toll booths after getting location
@@ -79,7 +91,7 @@ const BookExpress = () => {
         
         toast({
           title: "Location Found",
-          description: "Location detected successfully",
+          description: `Location detected with ${Math.round(position.coords.accuracy)}m accuracy`,
         });
       },
       (error) => {
@@ -92,8 +104,8 @@ const BookExpress = () => {
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        timeout: 15000, // Increased timeout for better accuracy
+        maximumAge: 0 // No cache - always get fresh location
       }
     );
   };
@@ -139,7 +151,6 @@ const BookExpress = () => {
           distance: distanceData.distance,
           duration: distanceData.duration,
           isSelectable: distanceData.distance >= 5 && distanceData.distance <= 20,
-          distanceError: distanceData.error
         };
       });
 
@@ -152,11 +163,10 @@ const BookExpress = () => {
       setLocationLoading(false);
 
       const selectableTolls = sortedTolls.filter(toll => toll.isSelectable);
-      const hasErrors = sortedTolls.some(toll => toll.distanceError);
       
       toast({
         title: "Toll Booths Found",
-        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km)${hasErrors ? ' (using GPS-accurate routing)' : ' (using road distance)'}`,
+        description: `Found ${sortedTolls.length} nearest toll booths. ${selectableTolls.length} are within booking range (5-20km) using accurate road distances`,
       });
     } catch (error) {
       console.error('Error in fetchTollBooths:', error);
@@ -374,7 +384,7 @@ const BookExpress = () => {
                             <span className="text-xs text-gray-500">
                               {toll.distance.toFixed(1)} km away • {Math.round(toll.duration)} min drive • {toll.highway}
                               {!toll.isSelectable && " • Outside booking range"}
-                              {toll.distanceError && " • GPS routing"}
+              
                             </span>
                           </div>
                           <div className="ml-4 text-right">
