@@ -16,11 +16,11 @@ const Login = () => {
   const [role, setRole] = useState<'admin' | 'driver'>('driver');
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false); // Track login success
-  const { login, user } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already logged in
-  if (user && !loginSuccess) {
+  // Redirect if already logged in (but not during login process)
+  if (user && !loginSuccess && !loading) {
     navigate(user.role === 'admin' ? '/admin' : '/driver');
     return null;
   }
@@ -67,6 +67,18 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  // Show loading screen while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-highway-blue mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
