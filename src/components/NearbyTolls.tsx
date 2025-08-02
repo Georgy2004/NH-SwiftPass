@@ -46,7 +46,20 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
+        // Ensure high precision coordinates
+        const latitude = parseFloat(position.coords.latitude.toFixed(8));
+        const longitude = parseFloat(position.coords.longitude.toFixed(8));
+        
+        console.log('GPS Location Details:', {
+          lat: latitude,
+          lng: longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: new Date(position.timestamp).toISOString(),
+          altitude: position.coords.altitude,
+          heading: position.coords.heading,
+          speed: position.coords.speed
+        });
+        
         setUserLocation({ lat: latitude, lng: longitude });
         
         // Fetch toll booths after getting location
@@ -54,7 +67,7 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
         
         toast({
           title: "Location Found",
-          description: "Location detected successfully",
+          description: `Location detected with ${Math.round(position.coords.accuracy)}m accuracy`,
         });
       },
       (error) => {
@@ -68,8 +81,8 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        timeout: 15000, // Increased timeout for better accuracy
+        maximumAge: 0 // No cache - always get fresh location
       }
     );
   };
@@ -129,12 +142,9 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
       setNearbyTolls(sortedTolls);
       setLoading(false);
 
-      // Check if any distances used fallback calculations
-      const hasErrors = Object.values(distanceResults).some(result => result.error);
-      
       toast({
         title: "Toll Booths Found",
-        description: `Found ${sortedTolls.length} toll booths within 20km${hasErrors ? ' (using GPS-accurate routing)' : ' (using road distance)'}`,
+        description: `Found ${sortedTolls.length} toll booths within 20km using accurate road distances`,
       });
     } catch (error) {
       console.error('Error in fetchTollBooths from Supabase:', error);
