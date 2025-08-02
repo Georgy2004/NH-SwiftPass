@@ -69,20 +69,10 @@ export async function calculateAccurateDistance(
     return results;
 
   } catch (error) {
-    console.error('Distance calculation failed, using fallback:', error);
+    console.error('Distance calculation failed - Google Maps API unavailable:', error);
     
-    // Fallback to Haversine formula for all destinations
-    const fallbackResults: Record<string, DistanceResult> = {};
-    destinations.forEach(dest => {
-      const distance = calculateHaversineDistance(userLat, userLng, dest.lat, dest.lng);
-      fallbackResults[dest.id] = {
-        distance,
-        duration: distance * 2, // Rough estimate: 2 minutes per km
-        error: 'Google Maps API unavailable, using straight-line distance'
-      };
-    });
-    
-    return fallbackResults;
+    // Don't calculate any distances when Google Maps API is unavailable
+    throw new Error('Google Maps API unavailable');
   }
 }
 
