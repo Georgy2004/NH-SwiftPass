@@ -6,24 +6,23 @@ export interface DistanceResult {
   error?: string;
 }
 
-// Haversine formula as fallback
-const calculateHaversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
-
 export async function calculateAccurateDistance(
   userLat: number,
   userLng: number,
   destinations: Array<{ lat: number; lng: number; id: string }>
 ): Promise<Record<string, DistanceResult>> {
   try {
+    // Log input parameters for debugging
+    console.log('Distance Calculation Input:', {
+      userLocation: { lat: userLat, lng: userLng },
+      destinations: destinations.map(dest => ({
+        id: dest.id,
+        lat: dest.lat,
+        lng: dest.lng
+      })),
+      timestamp: new Date().toISOString()
+    });
+
     // Prepare origins and destinations for Google Maps API
     const origins = [`${userLat},${userLng}`];
     const destinationCoords = destinations.map(dest => `${dest.lat},${dest.lng}`);
@@ -51,31 +50,39 @@ export async function calculateAccurateDistance(
     data.results.forEach((result: any, index: number) => {
       const destination = destinations[index];
       if (result.error) {
-        // Use Haversine as fallback
-        const fallbackDistance = calculateHaversineDistance(userLat, userLng, destination.lat, destination.lng);
-        results[destination.id] = {
-          distance: fallbackDistance,
-          duration: fallbackDistance * 2, // Rough estimate: 2 minutes per km
-          error: `Google Maps API error: ${result.error}, using fallback calculation`
-        };
+        // No fallback - throw error if Google Maps API fails
+        throw new Error(`Google Maps API error for destination ${destination.id}: ${result.error}`);
       } else {
+        const distanceKm = result.distance.value / 1000;
+        const durationMin = result.duration.value / 60;
+        
         results[destination.id] = {
-          distance: result.distance.value / 1000, // Convert meters to kilometers
-          duration: result.duration.value / 60, // Convert seconds to minutes
+          distance: distanceKm,
+          duration: durationMin,
         };
+        
+        // Log individual results for debugging
+        console.log(`Distance Result for ${destination.id}:`, {
+          tollName: destination.id,
+          distance: {
+            meters: result.distance.value,
+            kilometers: distanceKm,
+            text: result.distance.text
+          },
+          duration: {
+            seconds: result.duration.value,
+            minutes: durationMin,
+            text: result.duration.text
+          }
+        });
       }
     });
 
+    console.log('Final Distance Results:', results);
     return results;
 
   } catch (error) {
     console.error('Distance calculation failed - Google Maps API unavailable:', error);
-    
-    // Don't calculate any distances when Google Maps API is unavailable
-    throw new Error('Google Maps API unavailable');
+    throw new Error('Google Maps API unavailable - distance calculation failed');
   }
-}
-
-export function calculateSingleDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  return calculateHaversineDistance(lat1, lon1, lat2, lon2);
 }
