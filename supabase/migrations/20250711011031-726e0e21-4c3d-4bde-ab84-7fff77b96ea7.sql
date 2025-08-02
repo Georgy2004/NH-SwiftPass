@@ -5,7 +5,7 @@ INSERT INTO public.toll_booths (name, highway, latitude, longitude, express_lane
 ('Kumbkonam Toll Plaza', 'NH66', 11.2588, 75.7804, 50.00),
 ('Walayar Toll Plaza', 'NH544', 10.8131, 76.7980, 60.00),
 ('Cherthala Toll Plaza', 'NH66', 9.6843, 76.3350, 45.00),
-('Kochi Bypass Toll Plaza', 'NH66', 9.9079, 76.3480, 65.00),
+('Kochi Bypass Toll Plaza', 'NH66', 9.9079,76.3110, 65.00),
 ('Kollam Bypass Toll Plaza', 'NH66', 8.8932, 76.6141, 50.00),
 ('Thiruvananthapuram Bypass Toll Plaza', 'NH66', 8.5241, 76.9366, 55.00),
 ('Kannur Toll Plaza', 'NH66', 11.8745, 75.3704, 50.00),
