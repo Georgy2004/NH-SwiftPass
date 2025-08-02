@@ -141,7 +141,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               description: `Role mismatch: You tried to login as '${selectedRole}' but your account is '${userProfile.role}'.`,
               variant: "destructive",
             });
-            await supabase.auth.signOut(); // <-- Add this line
+            await supabase.auth.signOut();
+            setUser(null);
+            setSession(null);
             setLoading(false);
             return false;
           }
@@ -151,6 +153,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return true;
         } else {
           console.error('Failed to fetch user profile after login');
+          await supabase.auth.signOut();
+          setUser(null);
+          setSession(null);
           setLoading(false);
           return false;
         }
