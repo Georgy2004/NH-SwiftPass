@@ -15,7 +15,7 @@ import { calculateAccurateDistance, DistanceResult } from '@/utils/distanceCalcu
 
 // This file now uses Google Maps API for accurate distance calculation
 
-interface TollBoothWithDistance {
+interface TollBoothWithDistance {   
   id: string;
   name: string;
   highway: string;
