@@ -19,23 +19,80 @@ serve(async (req) => {
       throw new Error('Google Maps API key not configured')
     }
 
-    // Construct the Distance Matrix API URL with enhanced parameters for maximum accuracy
+    // Use Directions API for single destination for maximum accuracy (matches Google Maps app)
+    if (destinations.length === 1) {
+      const directionsUrl = 'https://maps.googleapis.com/maps/api/directions/json'
+      const directionsParams = new URLSearchParams({
+        origin: origins[0],
+        destination: destinations[0],
+        mode: 'driving',
+        units: 'metric',
+        departure_time: 'now',
+        traffic_model: 'best_guess',
+        region: 'in',
+        language: 'en',
+        key: GOOGLE_MAPS_API_KEY
+      })
+
+      console.log('Directions API Request (Single Destination):', {
+        origin: origins[0],
+        destination: destinations[0],
+        url: `${directionsUrl}?${directionsParams}`,
+        timestamp: new Date().toISOString()
+      });
+
+      const directionsResponse = await fetch(`${directionsUrl}?${directionsParams}`)
+      const directionsData = await directionsResponse.json()
+
+      console.log('Directions API Response:', {
+        status: directionsData.status,
+        error_message: directionsData.error_message,
+        route_found: directionsData.routes?.length > 0,
+        first_leg: directionsData.routes?.[0]?.legs?.[0],
+        timestamp: new Date().toISOString()
+      });
+
+      if (directionsData.status === 'OK' && directionsData.routes.length > 0) {
+        const leg = directionsData.routes[0].legs[0]
+        const results = [{
+          destinationIndex: 0,
+          distance: {
+            text: leg.distance.text,
+            value: leg.distance.value
+          },
+          duration: {
+            text: leg.duration.text,
+            value: leg.duration.value
+          }
+        }]
+
+        return new Response(
+          JSON.stringify({ success: true, results }),
+          { 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json' 
+            } 
+          }
+        )
+      }
+    }
+
+    // Fallback to Distance Matrix API for multiple destinations
     const baseUrl = 'https://maps.googleapis.com/maps/api/distancematrix/json'
     const params = new URLSearchParams({
       origins: origins.join('|'),
       destinations: destinations.join('|'),
       units: 'metric',
       mode: 'driving',
-      departure_time: 'now', // For real-time traffic data
-      traffic_model: 'optimistic', // Use optimistic traffic for shorter routes
-      region: 'in', // India region bias for better local routing
+      departure_time: 'now',
+      traffic_model: 'best_guess',
+      region: 'in',
       language: 'en',
-      avoid: 'indoor', // Avoid indoor routes for better accuracy
       key: GOOGLE_MAPS_API_KEY
     })
 
-    // Log request details for debugging
-    console.log('Distance Matrix API Request:', {
+    console.log('Distance Matrix API Request (Multiple Destinations):', {
       origins,
       destinations,
       url: `${baseUrl}?${params}`,
@@ -45,7 +102,6 @@ serve(async (req) => {
     const response = await fetch(`${baseUrl}?${params}`)
     const data = await response.json()
 
-    // Log detailed response for debugging discrepancies
     console.log('Distance Matrix API Response:', {
       status: data.status,
       error_message: data.error_message,
