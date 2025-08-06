@@ -19,7 +19,7 @@ serve(async (req) => {
       throw new Error('Google Maps API key not configured')
     }
 
-    // Construct the Distance Matrix API URL with enhanced parameters
+    // Construct the Distance Matrix API URL with enhanced parameters for maximum accuracy
     const baseUrl = 'https://maps.googleapis.com/maps/api/distancematrix/json'
     const params = new URLSearchParams({
       origins: origins.join('|'),
@@ -28,8 +28,10 @@ serve(async (req) => {
       mode: 'driving',
       departure_time: 'now', // For real-time traffic
       traffic_model: 'best_guess', // Consider current traffic conditions
+      avoid: '', // Don't avoid any routes for most accurate path
       region: 'in', // India region bias for better accuracy
       language: 'en', // English language
+      alternatives: 'false', // Use the best single route for consistency
       key: GOOGLE_MAPS_API_KEY
     })
 

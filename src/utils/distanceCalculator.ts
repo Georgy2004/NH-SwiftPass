@@ -12,13 +12,16 @@ export async function calculateAccurateDistance(
   destinations: Array<{ lat: number; lng: number; id: string }>
 ): Promise<Record<string, DistanceResult>> {
   try {
-    // Log input parameters for debugging
+    // Log input parameters for debugging with higher precision
     console.log('Distance Calculation Input:', {
-      userLocation: { lat: userLat, lng: userLng },
+      userLocation: { 
+        lat: parseFloat(userLat.toFixed(8)), 
+        lng: parseFloat(userLng.toFixed(8)) 
+      },
       destinations: destinations.map(dest => ({
         id: dest.id,
-        lat: dest.lat,
-        lng: dest.lng
+        lat: parseFloat(dest.lat.toFixed(8)),
+        lng: parseFloat(dest.lng.toFixed(8))
       })),
       timestamp: new Date().toISOString()
     });
