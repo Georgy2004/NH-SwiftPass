@@ -165,10 +165,9 @@ const Login = () => {
 
             {/* Demo Accounts */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Demo Accounts:</h4>
+
               <div className="text-xs text-gray-600 space-y-1">
-                <div>Admin: admin@highway.com / admin123</div>
-                <div>Driver: driver@highway.com / driver123</div>
+
               </div>
             </div>
           </CardContent>
