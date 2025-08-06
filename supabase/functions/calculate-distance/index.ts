@@ -26,12 +26,11 @@ serve(async (req) => {
       destinations: destinations.join('|'),
       units: 'metric',
       mode: 'driving',
-      departure_time: 'now', // For real-time traffic
-      traffic_model: 'best_guess', // Consider current traffic conditions
-      avoid: '', // Don't avoid any routes for most accurate path
-      region: 'in', // India region bias for better accuracy
-      language: 'en', // English language
-      alternatives: 'false', // Use the best single route for consistency
+      departure_time: 'now', // For real-time traffic data
+      traffic_model: 'optimistic', // Use optimistic traffic for shorter routes
+      region: 'in', // India region bias for better local routing
+      language: 'en',
+      avoid: 'indoor', // Avoid indoor routes for better accuracy
       key: GOOGLE_MAPS_API_KEY
     })
 
@@ -46,11 +45,12 @@ serve(async (req) => {
     const response = await fetch(`${baseUrl}?${params}`)
     const data = await response.json()
 
-    // Log response for debugging
+    // Log detailed response for debugging discrepancies
     console.log('Distance Matrix API Response:', {
       status: data.status,
       error_message: data.error_message,
       results_count: data.rows?.[0]?.elements?.length || 0,
+      first_result: data.rows?.[0]?.elements?.[0],
       timestamp: new Date().toISOString()
     });
 
