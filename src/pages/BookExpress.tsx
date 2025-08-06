@@ -207,7 +207,7 @@ const BookExpress = () => {
       setTimeSlot('');
     }
   }, [distance, selectedTollData]);
-  const totalAmount = selectedTollData ? 75 + selectedTollData.express_lane_fee : 0;
+  const totalAmount = selectedTollData ? selectedTollData.express_lane_fee : 0;
   const canAfford = user && user.balance && user.balance >= totalAmount;
   const isInRange = selectedTollData ? selectedTollData.isSelectable : false;
 
@@ -388,7 +388,7 @@ const BookExpress = () => {
                             </span>
                           </div>
                           <div className="ml-4 text-right">
-                            <span className="text-sm font-medium">₹{75 + toll.express_lane_fee}</span>
+                            <span className="text-sm font-medium">₹{toll.express_lane_fee}</span>
                             {toll.isSelectable ? (
                               <Badge variant="secondary" className="ml-2 text-xs">Available</Badge>
                             ) : (
@@ -452,11 +452,7 @@ const BookExpress = () => {
                   <Label>Pricing Breakdown</Label>
                   <div className="p-4 border rounded-lg space-y-2">
                     <div className="flex justify-between">
-                      <span>Base Toll Fee:</span>
-                      <span>₹75</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Express Lane Charge:</span>
+                      <span>Express Lane Fee:</span>
                       <span>₹{selectedTollData.express_lane_fee}</span>
                     </div>
                     <hr />
