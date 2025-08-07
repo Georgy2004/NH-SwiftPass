@@ -22,7 +22,7 @@ const LearnMore = () => {
               Back to Home
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">About Highway Express</h1>
+              <h1 className="text-2xl font-bold">About NH SwiftPass</h1>
               <p className="text-blue-100">Smart Toll Express Booking System</p>
             </div>
           </div>
