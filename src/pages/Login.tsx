@@ -97,7 +97,7 @@ const Login = () => {
           <CardHeader className="text-center">
             <div className="flex items-center justify-center space-x-2 mb-4">
               <Car className="h-8 w-8 text-highway-blue" />
-              <span className="text-2xl font-bold text-highway-blue">Highway Express</span>
+              <span className="text-2xl font-bold text-highway-blue">NH SwiftPass</span>
             </div>
             <CardTitle className="text-2xl">Welcome Back</CardTitle>
             <CardDescription>
