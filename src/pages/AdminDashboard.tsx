@@ -152,7 +152,7 @@ const AdminDashboard = () => {
               <Car className="h-8 w-8" />
               <div>
                 <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-                <p className="text-blue-100">Highway Express Management Portal</p>
+                <p className="text-blue-100">NH SwiftPass Management Portal</p>
               </div>
             </div>
             <Button 
