@@ -162,9 +162,6 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
     onClose();
   };
 
-  // Assuming a base fee of ₹75 for consistency with BookExpress.tsx
-  // In a real application, this should ideally be part of the toll_booths table if dynamic.
-  const BASE_TOLL_FEE = 75; 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -238,10 +235,10 @@ const NearbyTolls = ({ onClose, onSelectToll }: NearbyTollsProps) => {
                     </div>
                     <div className="text-right">
                       <Badge variant="secondary" className="mb-2">
-                        ₹{BASE_TOLL_FEE + toll.express_lane_fee}
+                        ₹{toll.express_lane_fee}
                       </Badge>
                       <p className="text-xs text-gray-500">
-                        Base: ₹{BASE_TOLL_FEE} + Express: ₹{toll.express_lane_fee}
+                        Express Lane Fee
                       </p>
                     </div>
                   </div>
