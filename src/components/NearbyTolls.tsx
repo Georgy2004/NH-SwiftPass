@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { calculateAccurateDistance, DistanceResult } from '@/utils/distanceCalculator';
 
 interface TollBooth {
-  id: string;
+  id: string; 
   name: string;
   highway: string; // Added from Supabase schema
   express_lane_fee: number; // Changed from expressCharge to match DB
