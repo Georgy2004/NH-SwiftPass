@@ -269,6 +269,9 @@ const BookExpress = () => {
           description: "Booking created but balance update failed. Please contact support.",
           variant: "destructive",
         });
+      } else {
+        // Refresh user profile to show updated balance
+        updateBalance(0);
       }
 
       toast({

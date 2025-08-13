@@ -264,32 +264,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateBalance = async (amount: number) => {
     if (!user || user.role !== 'driver') return;
 
+    // Only refresh user profile - transactions are handled by individual operations
     try {
-      const { data, error } = await supabase.rpc('update_user_balance', {
-        user_uuid: user.id,
-        amount_change: amount,
-        transaction_description: 'Money added to account'
-      });
-
-      if (error) {
-        console.error('Balance update error:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update balance. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data) {
-        // Refresh user profile
-        const updatedProfile = await fetchUserProfile(user.id);
-        if (updatedProfile) {
-          setUser(updatedProfile);
-        }
+      const updatedProfile = await fetchUserProfile(user.id);
+      if (updatedProfile) {
+        setUser(updatedProfile);
       }
     } catch (error) {
-      console.error('Balance update error:', error);
+      console.error('Balance refresh error:', error);
     }
   };
 

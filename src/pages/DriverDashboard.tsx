@@ -125,6 +125,8 @@ const DriverDashboard = () => {
           return;
         }
 
+        // Refresh user profile to show updated balance
+        updateBalance(0);
         setAddAmount('');
         toast({
           title: "Balance Added",
