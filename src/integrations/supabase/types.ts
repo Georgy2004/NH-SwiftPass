@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       bookings: {
         Row: {
+          admin_processed: boolean | null
           amount: number
           booking_date: string
           created_at: string | null
@@ -28,6 +29,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_processed?: boolean | null
           amount: number
           booking_date: string
           created_at?: string | null
@@ -40,6 +42,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_processed?: boolean | null
           amount?: number
           booking_date?: string
           created_at?: string | null
@@ -184,6 +187,10 @@ export type Database = {
       is_admin: {
         Args: { user_id: string }
         Returns: boolean
+      }
+      update_expired_bookings: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       update_user_balance: {
         Args: {

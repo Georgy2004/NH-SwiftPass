@@ -27,6 +27,7 @@ interface Booking {
   status: string;
   createdAt: string;
   licensePlate: string;
+  admin_processed: boolean;
 }
 
 const AdminDashboard = () => {
@@ -66,6 +67,7 @@ const AdminDashboard = () => {
           amount,
           status,
           created_at,
+          admin_processed,
           toll_booths:toll_booth_id ( name ),
           profiles:user_id ( license_plate )
         `)
@@ -94,7 +96,8 @@ const AdminDashboard = () => {
             amount: booking.amount,
             status: booking.status,
             createdAt: booking.created_at,
-            licensePlate: booking.profiles?.license_plate || 'N/A'
+            licensePlate: booking.profiles?.license_plate || 'N/A',
+            admin_processed: booking.admin_processed || false
           };
         })
       );
@@ -114,7 +117,7 @@ const AdminDashboard = () => {
 
   const handleRefund = async (booking: Booking) => {
     try {
-      // Add 50Rs to driver's wallet and change status to 'refunded'
+      // Add 50Rs to driver's wallet and change status to 'refund'
       const { error: balanceError } = await supabase.rpc('update_user_balance', {
         user_uuid: booking.user_id,
         amount_change: 50,
@@ -130,10 +133,10 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Update booking status to refunded
+      // Update booking status to refunded and mark as admin processed
       const { error: bookingError } = await supabase
         .from('bookings')
-        .update({ status: 'refunded' })
+        .update({ status: 'refunded', admin_processed: true })
         .eq('id', booking.id);
 
       if (bookingError) {
@@ -163,11 +166,28 @@ const AdminDashboard = () => {
 
   const handleNoRefund = async (booking: Booking) => {
     try {
-      // Keep status as completed, no money added
+      // Keep status as completed, mark as admin processed, no money added
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ admin_processed: true })
+        .eq('id', booking.id);
+
+      if (bookingError) {
+        toast({
+          title: "Error",
+          description: "Failed to update booking status.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "No Refund",
         description: `No refund processed for booking at ${booking.tollName}`,
       });
+
+      // Reload data to reflect changes
+      loadData();
     } catch (error) {
       toast({
         title: "Error",
@@ -378,7 +398,7 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       
-                      {booking.status === 'completed' && (
+                      {booking.status === 'completed' && !booking.admin_processed && (
                         <div className="flex gap-2 pt-3 border-t">
                           <Button
                             size="sm"
