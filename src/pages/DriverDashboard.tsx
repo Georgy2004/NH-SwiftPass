@@ -18,9 +18,12 @@ interface Booking {
   toll_name: string;
   time_slot: string;
   amount: number;
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'REFUND';
   created_at: string;
   booking_date: string;
+  refund_amount?: number;
+  refund_processed_at?: string;
+  admin_processed?: boolean;
 }
 
 const DriverDashboard = () => {
@@ -50,7 +53,7 @@ const DriverDashboard = () => {
 
       const { data: bookingsData, error } = await supabase
         .from('bookings')
-        .select(`*, toll_booths ( name )`)
+        .select(`*, toll_booths ( name ), refund_amount, refund_processed_at, admin_processed`)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -163,7 +166,7 @@ const DriverDashboard = () => {
       case 'confirmed': return 'bg-blue-500';
       case 'completed': return 'bg-green-500';
       case 'cancelled': return 'bg-red-500';
-      case 'refunded': return 'bg-yellow-500';
+      case 'REFUND': return 'bg-yellow-500';
       default: return 'bg-gray-500';
     }
   };
@@ -331,6 +334,11 @@ const DriverDashboard = () => {
                           <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
                             {booking.status.toUpperCase()}
                           </Badge>
+                          {booking.status === 'REFUND' && booking.refund_amount && (
+                            <div className="text-xs text-green-600 mt-1">
+                              Refund: ₹{booking.refund_amount}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
