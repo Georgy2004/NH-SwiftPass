@@ -28,6 +28,9 @@ interface Booking {
   createdAt: string;
   licensePlate: string;
   admin_processed: boolean;
+  refund_amount?: number;
+  refund_processed_at?: string;
+  refund_processed_by?: string;
 }
 
 const AdminDashboard = () => {
@@ -68,6 +71,9 @@ const AdminDashboard = () => {
           status,
           created_at,
           admin_processed,
+          refund_amount,
+          refund_processed_at,
+          refund_processed_by,
           toll_booths:toll_booth_id ( name ),
           profiles:user_id ( license_plate )
         `)
@@ -97,7 +103,10 @@ const AdminDashboard = () => {
             status: booking.status,
             createdAt: booking.created_at,
             licensePlate: booking.profiles?.license_plate || 'N/A',
-            admin_processed: booking.admin_processed || false
+            admin_processed: booking.admin_processed || false,
+            refund_amount: booking.refund_amount || 0,
+            refund_processed_at: booking.refund_processed_at,
+            refund_processed_by: booking.refund_processed_by
           };
         })
       );
@@ -133,10 +142,16 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Update booking status to refunded and mark as admin processed
+      // Update booking status to REFUND and mark as admin processed
       const { error: bookingError } = await supabase
         .from('bookings')
-        .update({ status: 'refunded', admin_processed: true })
+        .update({ 
+          status: 'REFUND', 
+          admin_processed: true,
+          refund_amount: 50,
+          refund_processed_at: new Date().toISOString(),
+          refund_processed_by: user?.id
+        })
         .eq('id', booking.id);
 
       if (bookingError) {
@@ -150,7 +165,7 @@ const AdminDashboard = () => {
 
       toast({
         title: "Refund Processed",
-        description: `₹50 refunded to driver for booking at ${booking.tollName}`,
+        description: `₹50 refunded to driver for booking at ${booking.tollName}. Status changed to REFUND.`,
       });
 
       // Reload data to reflect changes
@@ -169,7 +184,12 @@ const AdminDashboard = () => {
       // Keep status as completed, mark as admin processed, no money added
       const { error: bookingError } = await supabase
         .from('bookings')
-        .update({ admin_processed: true })
+        .update({ 
+          admin_processed: true,
+          refund_amount: 0,
+          refund_processed_at: new Date().toISOString(),
+          refund_processed_by: user?.id
+        })
         .eq('id', booking.id);
 
       if (bookingError) {
@@ -183,7 +203,7 @@ const AdminDashboard = () => {
 
       toast({
         title: "No Refund",
-        description: `No refund processed for booking at ${booking.tollName}`,
+        description: `No refund processed for booking at ${booking.tollName}. Status remains COMPLETED.`,
       });
 
       // Reload data to reflect changes
@@ -212,6 +232,7 @@ const AdminDashboard = () => {
     activeBookings: bookings.filter(b => b.status === 'confirmed').length,
     totalRevenue: bookings.reduce((sum, b) => sum + Number(b.amount), 0),
     completedBookings: bookings.filter(b => b.status === 'completed').length,
+    refundedBookings: bookings.filter(b => b.status === 'REFUND').length,
   };
 
   if (!user) return null;
@@ -254,7 +275,7 @@ const AdminDashboard = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        <div className="grid md:grid-cols-5 gap-6 mb-8">
           <Card className="toll-card">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -299,6 +320,18 @@ const AdminDashboard = () => {
                   <p className="text-2xl font-bold text-gray-700">{stats.completedBookings}</p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-gray-700" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="toll-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Refunded</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.refundedBookings}</p>
+                </div>
+                <CreditCard className="h-8 w-8 text-yellow-600" />
               </div>
             </CardContent>
           </Card>
@@ -377,7 +410,7 @@ const AdminDashboard = () => {
                           variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
                           className={
                             booking.status === 'completed' ? 'bg-green-500 text-white' :
-                            booking.status === 'refunded' ? 'bg-yellow-500 text-white' : ''
+                            booking.status === 'REFUND' ? 'bg-yellow-500 text-white' : ''
                           }
                         >
                           {booking.status.toUpperCase()}
@@ -414,6 +447,21 @@ const AdminDashboard = () => {
                           >
                             No Refund
                           </Button>
+                        </div>
+                      )}
+                      
+                      {/* Show refund info for processed bookings */}
+                      {booking.admin_processed && (
+                        <div className="pt-3 border-t">
+                          {booking.status === 'REFUND' ? (
+                            <div className="text-sm text-green-600 font-medium">
+                              ✅ Refund processed: ₹{booking.refund_amount} on {new Date(booking.refund_processed_at || '').toLocaleDateString()}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-600 font-medium">
+                              ✅ No refund - Admin processed on {new Date(booking.refund_processed_at || '').toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
