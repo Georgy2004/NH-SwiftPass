@@ -125,7 +125,6 @@ const DriverDashboard = () => {
           return;
         }
 
-        updateBalance(amount);
         setAddAmount('');
         toast({
           title: "Balance Added",
