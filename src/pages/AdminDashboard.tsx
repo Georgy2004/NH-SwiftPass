@@ -112,6 +112,71 @@ const AdminDashboard = () => {
     navigate('/');
   };
 
+  const handleRefund = async (booking: Booking) => {
+    try {
+      // Add 50Rs to driver's wallet and change status to 'refunded'
+      const { error: balanceError } = await supabase.rpc('update_user_balance', {
+        user_uuid: booking.user_id,
+        amount_change: 50,
+        transaction_description: `Refund for ${booking.tollName} booking`
+      });
+
+      if (balanceError) {
+        toast({
+          title: "Error",
+          description: "Failed to process refund. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update booking status to refunded
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ status: 'refunded' })
+        .eq('id', booking.id);
+
+      if (bookingError) {
+        toast({
+          title: "Error", 
+          description: "Failed to update booking status.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Refund Processed",
+        description: `₹50 refunded to driver for booking at ${booking.tollName}`,
+      });
+
+      // Reload data to reflect changes
+      loadData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process refund. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleNoRefund = async (booking: Booking) => {
+    try {
+      // Keep status as completed, no money added
+      toast({
+        title: "No Refund",
+        description: `No refund processed for booking at ${booking.tollName}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process no refund action.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredDrivers = drivers.filter(driver => 
     driver.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (driver.license_plate && driver.license_plate.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -290,12 +355,15 @@ const AdminDashboard = () => {
                         <h4 className="font-medium">{booking.tollName}</h4>
                         <Badge 
                           variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
-                          className={booking.status === 'completed' ? 'bg-green-500 text-white' : ''}
+                          className={
+                            booking.status === 'completed' ? 'bg-green-500 text-white' :
+                            booking.status === 'refunded' ? 'bg-yellow-500 text-white' : ''
+                          }
                         >
                           {booking.status.toUpperCase()}
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
                         <div>
                           <span className="font-medium">License:</span> {booking.licensePlate}
                         </div>
@@ -309,6 +377,25 @@ const AdminDashboard = () => {
                           <span className="font-medium">Booked:</span> {new Date(booking.createdAt).toLocaleDateString()}
                         </div>
                       </div>
+                      
+                      {booking.status === 'completed' && (
+                        <div className="flex gap-2 pt-3 border-t">
+                          <Button
+                            size="sm"
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                            onClick={() => handleRefund(booking)}
+                          >
+                            Refund (₹50)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleNoRefund(booking)}
+                          >
+                            No Refund
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
