@@ -329,7 +329,13 @@ const DriverDashboard = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-medium">₹{booking.amount}</div>
-                          <Badge variant={booking.status === 'confirmed' ? 'default' : 'secondary'}>
+                          <Badge 
+                            variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
+                            className={
+                              booking.status === 'completed' ? 'bg-green-500 text-white' :
+                              booking.status === 'refund' ? 'bg-yellow-500 text-white' : ''
+                            }
+                          >
                             {booking.status.toUpperCase()}
                           </Badge>
                         </div>
