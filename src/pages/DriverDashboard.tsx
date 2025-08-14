@@ -18,7 +18,7 @@ interface Booking {
   toll_name: string;
   time_slot: string;
   amount: number;
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'refund';
   created_at: string;
   booking_date: string;
 }
@@ -164,6 +164,7 @@ const DriverDashboard = () => {
       case 'completed': return 'bg-green-500';
       case 'cancelled': return 'bg-red-500';
       case 'refunded': return 'bg-yellow-500';
+      case 'refund': return 'bg-yellow-500';
       default: return 'bg-gray-500';
     }
   };

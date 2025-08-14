@@ -133,10 +133,10 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Update booking status to refunded and mark as admin processed
+      // Update booking status to refund and mark as admin processed
       const { error: bookingError } = await supabase
         .from('bookings')
-        .update({ status: 'refunded', admin_processed: true })
+        .update({ status: 'refund', admin_processed: true })
         .eq('id', booking.id);
 
       if (bookingError) {
@@ -373,11 +373,11 @@ const AdminDashboard = () => {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-medium">{booking.tollName}</h4>
-                        <Badge 
+                         <Badge 
                           variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
                           className={
                             booking.status === 'completed' ? 'bg-green-500 text-white' :
-                            booking.status === 'refunded' ? 'bg-yellow-500 text-white' : ''
+                            booking.status === 'refund' ? 'bg-yellow-500 text-white' : ''
                           }
                         >
                           {booking.status.toUpperCase()}
