@@ -24,7 +24,7 @@ interface Booking {
   tollName: string;
   timeSlot: string;
   amount: number;
-  status: string;
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'refund' | 'FastTag' | 'fined';
   createdAt: string;
   licensePlate: string;
   admin_processed: boolean;
@@ -192,6 +192,88 @@ const AdminDashboard = () => {
       toast({
         title: "Error",
         description: "Failed to process no refund action.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFine = async (booking: Booking) => {
+    try {
+      // Deduct 1000Rs from driver's wallet and change status to 'fined'
+      const { error: balanceError } = await supabase.rpc('update_user_balance', {
+        user_uuid: booking.user_id,
+        amount_change: -1000,
+        transaction_description: `Fine for FasTag booking at ${booking.tollName}`
+      });
+
+      if (balanceError) {
+        toast({
+          title: "Error",
+          description: "Failed to process fine. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update booking status to fined and mark as admin processed
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ status: 'fined', admin_processed: true })
+        .eq('id', booking.id);
+
+      if (bookingError) {
+        toast({
+          title: "Error", 
+          description: "Failed to update booking status.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Fine Processed",
+        description: `₹1000 fine deducted from driver for FasTag booking at ${booking.tollName}`,
+      });
+
+      // Reload data to reflect changes
+      loadData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process fine. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleNoFine = async (booking: Booking) => {
+    try {
+      // Keep status as FastTag, mark as admin processed, no money deducted
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({ admin_processed: true })
+        .eq('id', booking.id);
+
+      if (bookingError) {
+        toast({
+          title: "Error",
+          description: "Failed to update booking status.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "No Fine",
+        description: `No fine applied for FasTag booking at ${booking.tollName}`,
+      });
+
+      // Reload data to reflect changes
+      loadData();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process no fine action.",
         variant: "destructive",
       });
     }
@@ -377,7 +459,9 @@ const AdminDashboard = () => {
                           variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
                           className={
                             booking.status === 'completed' ? 'bg-green-500 text-white' :
-                            booking.status === 'refund' ? 'bg-yellow-500 text-white' : ''
+                            booking.status === 'refund' ? 'bg-yellow-500 text-white' :
+                            booking.status === 'FastTag' ? 'bg-purple-500 text-white' :
+                            booking.status === 'fined' ? 'bg-red-600 text-white' : ''
                           }
                         >
                           {booking.status.toUpperCase()}
@@ -413,6 +497,25 @@ const AdminDashboard = () => {
                             onClick={() => handleNoRefund(booking)}
                           >
                             No Refund
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {booking.status === 'FastTag' && !booking.admin_processed && (
+                        <div className="flex gap-2 pt-3 border-t">
+                          <Button
+                            size="sm"
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                            onClick={() => handleFine(booking)}
+                          >
+                            Fine (₹1000)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleNoFine(booking)}
+                          >
+                            No Fine
                           </Button>
                         </div>
                       )}

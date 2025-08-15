@@ -208,6 +208,8 @@ export type Database = {
         | "cancelled"
         | "refunded"
         | "refund"
+        | "FastTag"
+        | "fined"
       transaction_type: "booking_payment" | "account_topup" | "refund" | "fine"
       user_role: "admin" | "driver"
     }
@@ -343,6 +345,8 @@ export const Constants = {
         "cancelled",
         "refunded",
         "refund",
+        "FastTag",
+        "fined",
       ],
       transaction_type: ["booking_payment", "account_topup", "refund", "fine"],
       user_role: ["admin", "driver"],

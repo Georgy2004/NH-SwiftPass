@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Car, CreditCard, Clock, MapPin, Plus, LogOut, Zap } from 'lucide-react';
+import { Car, CreditCard, Clock, MapPin, Plus, LogOut, Zap, Tag } from 'lucide-react';
 import NearbyTolls from '@/components/NearbyTolls';
 import dayjs from 'dayjs';
 
@@ -18,7 +18,7 @@ interface Booking {
   toll_name: string;
   time_slot: string;
   amount: number;
-  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'refund';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'refunded' | 'refund' | 'FastTag' | 'fined';
   created_at: string;
   booking_date: string;
 }
@@ -158,6 +158,94 @@ const DriverDashboard = () => {
     navigate('/');
   };
 
+  const handleBookFasTag = async () => {
+    if (!user) return;
+
+    // Check if user has sufficient balance
+    const balance = user.balance || 0;
+    if (balance < 100) {
+      toast({
+        title: "Insufficient Balance",
+        description: "You need at least ₹100 to book a FasTag lane.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Get a random toll booth for FasTag booking
+      const { data: tollBooths, error: tollError } = await supabase
+        .from('toll_booths')
+        .select('id, name')
+        .limit(1);
+
+      if (tollError || !tollBooths || tollBooths.length === 0) {
+        toast({
+          title: "Error",
+          description: "Unable to get toll booth information.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const tollBooth = tollBooths[0];
+
+      // Create FasTag booking
+      const { error: bookingError } = await supabase.from('bookings').insert({
+        user_id: user.id,
+        toll_booth_id: tollBooth.id,
+        time_slot: 'FasTag Lane - No Time Limit',
+        booking_date: new Date().toISOString().split('T')[0],
+        amount: 100,
+        status: 'FastTag',
+        distance_from_toll: 0
+      });
+
+      if (bookingError) {
+        console.error('Error creating FasTag booking:', bookingError);
+        toast({
+          title: "Error",
+          description: "Failed to book FasTag lane. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Deduct 100Rs from user's balance
+      const { data: result, error: balanceError } = await supabase
+        .rpc('update_user_balance', {
+          user_uuid: user.id,
+          amount_change: -100,
+          transaction_description: 'FasTag lane booking'
+        });
+
+      if (balanceError || !result) {
+        toast({
+          title: "Error",
+          description: "Failed to process payment. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update user balance and refresh bookings
+      updateBalance(0);
+      fetchBookings();
+
+      toast({
+        title: "FasTag Lane Booked",
+        description: "₹100 deducted. You can now use any FasTag lane without time restrictions.",
+      });
+    } catch (error) {
+      console.error('Error booking FasTag:', error);
+      toast({
+        title: "Error",
+        description: "Failed to book FasTag lane. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-blue-500';
@@ -165,6 +253,8 @@ const DriverDashboard = () => {
       case 'cancelled': return 'bg-red-500';
       case 'refunded': return 'bg-yellow-500';
       case 'refund': return 'bg-yellow-500';
+      case 'FastTag': return 'bg-purple-500';
+      case 'fined': return 'bg-red-600';
       default: return 'bg-gray-500';
     }
   };
@@ -262,6 +352,13 @@ const DriverDashboard = () => {
                   Book Express Lane
                 </Button>
                 <Button 
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={handleBookFasTag}
+                >
+                  <Tag className="h-4 w-4 mr-2" />
+                  Book FasTag Lane
+                </Button>
+                <Button 
                   variant="outline" 
                   className="w-full"
                   onClick={() => setShowNearbyTolls(true)}
@@ -333,7 +430,9 @@ const DriverDashboard = () => {
                             variant={booking.status === 'confirmed' ? 'default' : 'secondary'}
                             className={
                               booking.status === 'completed' ? 'bg-green-500 text-white' :
-                              booking.status === 'refund' ? 'bg-yellow-500 text-white' : ''
+                              booking.status === 'refund' ? 'bg-yellow-500 text-white' :
+                              booking.status === 'FastTag' ? 'bg-purple-500 text-white' :
+                              booking.status === 'fined' ? 'bg-red-600 text-white' : ''
                             }
                           >
                             {booking.status.toUpperCase()}
