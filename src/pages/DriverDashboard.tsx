@@ -173,11 +173,40 @@ const DriverDashboard = () => {
     }
 
     try {
-      // Get a random toll booth for FasTag booking
+      // Get user's current location
+      const getCurrentLocation = (): Promise<GeolocationPosition> => {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error('Geolocation is not supported by this browser.'));
+          }
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+          });
+        });
+      };
+
+      let userLocation;
+      try {
+        const position = await getCurrentLocation();
+        userLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+      } catch (locationError) {
+        toast({
+          title: "Location Error",
+          description: "Unable to get your location. Please enable location access.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fetch all toll booths
       const { data: tollBooths, error: tollError } = await supabase
         .from('toll_booths')
-        .select('id, name')
-        .limit(1);
+        .select('id, name, latitude, longitude');
 
       if (tollError || !tollBooths || tollBooths.length === 0) {
         toast({
@@ -188,7 +217,33 @@ const DriverDashboard = () => {
         return;
       }
 
-      const tollBooth = tollBooths[0];
+      // Calculate distances to all toll booths
+      const destinations = tollBooths.map(booth => ({
+        lat: parseFloat(booth.latitude.toString()),
+        lng: parseFloat(booth.longitude.toString()),
+        id: booth.id
+      }));
+
+      const { calculateAccurateDistance } = await import('@/utils/distanceCalculator');
+      const distanceResults = await calculateAccurateDistance(
+        userLocation.lat,
+        userLocation.lng,
+        destinations
+      );
+
+      // Find the nearest toll booth
+      let nearestTollBooth = tollBooths[0];
+      let minDistance = distanceResults[tollBooths[0].id]?.distance || Infinity;
+
+      tollBooths.forEach(booth => {
+        const distance = distanceResults[booth.id]?.distance || Infinity;
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestTollBooth = booth;
+        }
+      });
+
+      const tollBooth = nearestTollBooth;
 
       // Create FasTag booking
       const { error: bookingError } = await supabase.from('bookings').insert({
