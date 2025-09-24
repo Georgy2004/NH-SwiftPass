@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car } from 'lucide-react';
+import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import dayjs from 'dayjs';
 
@@ -38,6 +37,9 @@ const AdminDashboard = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // --- MODIFIED LINE 1: Define the external link ---
+  const AI_DETECTION_PATH = 'https://www.youtube.com/'; 
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -113,6 +115,11 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  // --- MODIFIED LINE 2: Use window.location.href for external link ---
+  const handleAIDetection = () => {
+    window.location.href = AI_DETECTION_PATH;
   };
 
   const handleRefund = async (booking: Booking) => {
@@ -322,14 +329,25 @@ const AdminDashboard = () => {
                 <p className="text-blue-100">NH SwiftPass Management Portal</p>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              className="bg-white text-highway-blue hover:bg-gray-100"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            {/* Button for AI No Plate Detection and existing Logout button */}
+            <div className="flex space-x-4">
+              <Button 
+                variant="outline" 
+                className="bg-white text-highway-blue hover:bg-gray-100"
+                onClick={handleAIDetection}
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                AI No Plate Detection
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-white text-highway-blue hover:bg-gray-100"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         </div>
       </header>
