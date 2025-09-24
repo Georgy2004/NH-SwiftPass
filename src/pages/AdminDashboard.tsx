@@ -39,7 +39,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // --- MODIFIED LINE 1: Define the external link ---
-  const AI_DETECTION_PATH = 'https://www.youtube.com/'; 
+  const AI_DETECTION_PATH = 'https://www.example.com'; 
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
