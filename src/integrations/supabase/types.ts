@@ -184,14 +184,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      is_admin: {
-        Args: { user_id: string }
-        Returns: boolean
-      }
-      update_expired_bookings: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      is_admin: { Args: { user_id: string }; Returns: boolean }
+      update_expired_bookings: { Args: never; Returns: undefined }
       update_user_balance: {
         Args: {
           amount_change: number
