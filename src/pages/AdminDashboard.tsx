@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import dayjs from 'dayjs';
+import AdminVehicleList from '@/components/AdminVehicleList';
 
 interface Driver {
   id: string;
@@ -543,6 +544,11 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Vehicles Section */}
+        <div className="mt-8">
+          <AdminVehicleList />
         </div>
 
         {/* System Status */}
