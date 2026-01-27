@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,7 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, CreditCard, Zap, Plus } from 'lucide-react';
+import { ArrowLeft, CreditCard, Zap, Plus, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { exportToPDF, exportToExcel } from '@/utils/transactionExport';
 
 interface Transaction {
   id: string;
@@ -151,13 +151,39 @@ const TransactionHistory = () => {
       <div className="container mx-auto px-4 py-8">
         <Card className="toll-card">
           <CardHeader>
-            <CardTitle className="text-highway-blue flex items-center">
-              <CreditCard className="h-5 w-5 mr-2" />
-              Transaction History
-            </CardTitle>
-            <CardDescription>
-              Express lane bookings and money additions to your account
-            </CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="text-highway-blue flex items-center">
+                  <CreditCard className="h-5 w-5 mr-2" />
+                  Transaction History
+                </CardTitle>
+                <CardDescription>
+                  Express lane bookings and money additions to your account
+                </CardDescription>
+              </div>
+              {transactions.length > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportToPDF(transactions, user.email)}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportToExcel(transactions, user.email)}
+                    className="flex items-center gap-2"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {loadingTransactions ? (
