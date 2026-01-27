@@ -274,9 +274,42 @@ const BookExpress = () => {
         updateBalance(0);
       }
 
+      // Send booking confirmation email
+      try {
+        const emailResponse = await fetch(
+          'https://xdqkafdnxtvhlamamuqj.supabase.co/functions/v1/send-booking-receipt',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcWthZmRueHR2aGxhbWFtdXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODkzNzcsImV4cCI6MjA2NzU2NTM3N30.vHM2T4L-02UhMHKyrMgIVaNykvTl-VIMl6qoWSZn9L0`,
+            },
+            body: JSON.stringify({
+              email: user.email,
+              bookingDetails: {
+                tollName: selectedTollData.name,
+                timeSlot: timeSlot,
+                bookingDate: new Date().toISOString().split('T')[0],
+                amount: totalAmount,
+                bookingType: 'express',
+                distance: distance,
+              },
+            }),
+          }
+        );
+        
+        if (emailResponse.ok) {
+          console.log('Booking confirmation email sent');
+        } else {
+          console.error('Failed to send confirmation email');
+        }
+      } catch (emailError) {
+        console.error('Error sending confirmation email:', emailError);
+      }
+
       toast({
         title: "Booking Confirmed!",
-        description: `Express lane booked for ${selectedTollData.name}. Time slot: ${timeSlot}`,
+        description: `Express lane booked for ${selectedTollData.name}. Confirmation email sent to ${user.email}`,
       });
 
       navigate('/driver');
