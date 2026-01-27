@@ -283,13 +283,45 @@ const DriverDashboard = () => {
         return;
       }
 
+      // Send booking confirmation email
+      try {
+        const emailResponse = await fetch(
+          'https://xdqkafdnxtvhlamamuqj.supabase.co/functions/v1/send-booking-receipt',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcWthZmRueHR2aGxhbWFtdXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODkzNzcsImV4cCI6MjA2NzU2NTM3N30.vHM2T4L-02UhMHKyrMgIVaNykvTl-VIMl6qoWSZn9L0`,
+            },
+            body: JSON.stringify({
+              email: user.email,
+              bookingDetails: {
+                tollName: tollBooth.name,
+                timeSlot: 'FasTag Lane - No Time Limit',
+                bookingDate: new Date().toISOString().split('T')[0],
+                amount: 100,
+                bookingType: 'fasttag',
+              },
+            }),
+          }
+        );
+        
+        if (emailResponse.ok) {
+          console.log('FasTag booking confirmation email sent');
+        } else {
+          console.error('Failed to send FasTag confirmation email');
+        }
+      } catch (emailError) {
+        console.error('Error sending FasTag confirmation email:', emailError);
+      }
+
       // Update user balance and refresh bookings
       updateBalance(0);
       fetchBookings();
 
       toast({
         title: "FasTag Lane Booked",
-        description: "₹100 deducted. You can now use any FasTag lane without time restrictions.",
+        description: `₹100 deducted. Confirmation email sent to ${user.email}`,
       });
     } catch (error) {
       console.error('Error booking FasTag:', error);
