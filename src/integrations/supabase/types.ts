@@ -179,54 +179,19 @@ export type Database = {
           },
         ]
       }
-      vehicles: {
-        Row: {
-          created_at: string
-          id: string
-          is_primary: boolean
-          license_plate: string
-          updated_at: string
-          user_id: string
-          vehicle_name: string | null
-          vehicle_type: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_primary?: boolean
-          license_plate: string
-          updated_at?: string
-          user_id: string
-          vehicle_name?: string | null
-          vehicle_type?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_primary?: boolean
-          license_plate?: string
-          updated_at?: string
-          user_id?: string
-          vehicle_name?: string | null
-          vehicle_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vehicles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      is_admin: { Args: { user_id: string }; Returns: boolean }
-      update_expired_bookings: { Args: never; Returns: undefined }
+      is_admin: {
+        Args: { user_id: string }
+        Returns: boolean
+      }
+      update_expired_bookings: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       update_user_balance: {
         Args: {
           amount_change: number

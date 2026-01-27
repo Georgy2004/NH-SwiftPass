@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Car, CreditCard, Clock, MapPin, Plus, LogOut, Zap, Tag } from 'lucide-react';
 import NearbyTolls from '@/components/NearbyTolls';
-import VehicleManagement from '@/components/VehicleManagement';
 import dayjs from 'dayjs';
 
 interface Booking {
@@ -500,11 +499,6 @@ const DriverDashboard = () => {
                 )}
               </CardContent>
             </Card>
-
-            {/* Vehicle Management */}
-            <div className="mt-6">
-              <VehicleManagement />
-            </div>
 
             {/* Instructions */}
             <Card className="toll-card mt-6">

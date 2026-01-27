@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import dayjs from 'dayjs';
-import AdminVehicleList from '@/components/AdminVehicleList';
 
 interface Driver {
   id: string;
@@ -40,7 +39,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   // --- MODIFIED LINE 1: Define the external link ---
-  const AI_DETECTION_PATH = 'https://www.example.com'; 
+  const AI_DETECTION_PATH = 'https://www.youtube.com/'; 
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -544,11 +543,6 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Vehicles Section */}
-        <div className="mt-8">
-          <AdminVehicleList />
         </div>
 
         {/* System Status */}
