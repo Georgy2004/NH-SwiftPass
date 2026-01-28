@@ -283,33 +283,23 @@ const DriverDashboard = () => {
         return;
       }
 
-      // Send booking confirmation email
+      // Send booking confirmation email via EmailJS (free, no domain required)
       try {
-        const emailResponse = await fetch(
-          'https://xdqkafdnxtvhlamamuqj.supabase.co/functions/v1/send-booking-receipt',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcWthZmRueHR2aGxhbWFtdXFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODkzNzcsImV4cCI6MjA2NzU2NTM3N30.vHM2T4L-02UhMHKyrMgIVaNykvTl-VIMl6qoWSZn9L0`,
-            },
-            body: JSON.stringify({
-              email: user.email,
-              bookingDetails: {
-                tollName: tollBooth.name,
-                timeSlot: 'FasTag Lane - No Time Limit',
-                bookingDate: new Date().toISOString().split('T')[0],
-                amount: 100,
-                bookingType: 'fasttag',
-              },
-            }),
-          }
-        );
+        const { sendBookingConfirmationEmail } = await import('@/utils/emailService');
+        const emailSent = await sendBookingConfirmationEmail({
+          to_email: user.email,
+          to_name: user.email.split('@')[0],
+          toll_name: tollBooth.name,
+          booking_date: new Date().toISOString().split('T')[0],
+          time_slot: 'FasTag Lane - No Time Limit',
+          amount: 100,
+          booking_type: 'FasTag Lane',
+        });
         
-        if (emailResponse.ok) {
-          console.log('FasTag booking confirmation email sent');
+        if (emailSent) {
+          console.log('FasTag booking confirmation email sent via EmailJS');
         } else {
-          console.error('Failed to send FasTag confirmation email');
+          console.log('EmailJS not configured - skipping confirmation email');
         }
       } catch (emailError) {
         console.error('Error sending FasTag confirmation email:', emailError);
