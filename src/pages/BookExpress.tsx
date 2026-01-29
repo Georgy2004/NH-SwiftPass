@@ -275,9 +275,10 @@ const BookExpress = () => {
       }
 
       // Send booking confirmation email via EmailJS (free, no domain required)
+      let emailSent = false;
       try {
         const { sendBookingConfirmationEmail } = await import('@/utils/emailService');
-        const emailSent = await sendBookingConfirmationEmail({
+        emailSent = await sendBookingConfirmationEmail({
           to_email: user.email,
           to_name: user.email.split('@')[0],
           toll_name: selectedTollData.name,
@@ -299,7 +300,9 @@ const BookExpress = () => {
 
       toast({
         title: "Booking Confirmed!",
-        description: `Express lane booked for ${selectedTollData.name}. Confirmation email sent to ${user.email}`,
+        description: emailSent
+          ? `Express lane booked for ${selectedTollData.name}. Confirmation email sent to ${user.email}`
+          : `Express lane booked for ${selectedTollData.name}. Email could not be sent (check EmailJS Service/Template/Public Key and allowed origin).`,
       });
 
       navigate('/driver');
