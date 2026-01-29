@@ -283,10 +283,11 @@ const DriverDashboard = () => {
         return;
       }
 
-      // Send booking confirmation email via EmailJS (free, no domain required)
-      try {
-        const { sendBookingConfirmationEmail } = await import('@/utils/emailService');
-        const emailSent = await sendBookingConfirmationEmail({
+       // Send booking confirmation email via EmailJS (free, no domain required)
+       let emailSent = false;
+       try {
+         const { sendBookingConfirmationEmail } = await import('@/utils/emailService');
+         emailSent = await sendBookingConfirmationEmail({
           to_email: user.email,
           to_name: user.email.split('@')[0],
           toll_name: tollBooth.name,
@@ -311,7 +312,9 @@ const DriverDashboard = () => {
 
       toast({
         title: "FasTag Lane Booked",
-        description: `₹100 deducted. Confirmation email sent to ${user.email}`,
+         description: emailSent
+           ? `₹100 deducted. Confirmation email sent to ${user.email}`
+           : `₹100 deducted. Email could not be sent (check EmailJS Service/Template/Public Key and allowed origin).`,
       });
     } catch (error) {
       console.error('Error booking FasTag:', error);

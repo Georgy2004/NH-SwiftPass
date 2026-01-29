@@ -6,6 +6,11 @@ const EMAILJS_SERVICE_ID = 'service_8pvwqtb'; // Replace with your EmailJS servi
 const EMAILJS_TEMPLATE_ID = 'template_qj2l0g2';   // Replace with your EmailJS template ID
 const EMAILJS_PUBLIC_KEY = 'NncLVIw-8ktVrtu3k';     // Replace with your EmailJS public key
 
+const isMissingOrPlaceholder = (value: string | undefined | null) => {
+  if (!value) return true;
+  return value.includes('YOUR_') || value.includes('REPLACE_');
+};
+
 interface BookingEmailParams {
   to_email: string;
   to_name: string;
@@ -18,9 +23,16 @@ interface BookingEmailParams {
 }
 
 export const sendBookingConfirmationEmail = async (params: BookingEmailParams): Promise<boolean> => {
-  // Check if EmailJS is configured (public key should not be placeholder)
-  if (!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY.includes('YOUR_')) {
-    console.warn('EmailJS not configured. Please set up EmailJS credentials in src/utils/emailService.ts');
+  // EmailJS runs from the browser. These values are *not* Supabase secrets.
+  // They must be available client-side (EmailJS uses a public key).
+  if (
+    isMissingOrPlaceholder(EMAILJS_SERVICE_ID) ||
+    isMissingOrPlaceholder(EMAILJS_TEMPLATE_ID) ||
+    isMissingOrPlaceholder(EMAILJS_PUBLIC_KEY)
+  ) {
+    console.warn(
+      'EmailJS not configured. Please set Service ID, Template ID, and Public Key in src/utils/emailService.ts'
+    );
     return false;
   }
 
@@ -51,7 +63,13 @@ export const sendBookingConfirmationEmail = async (params: BookingEmailParams): 
     console.log('Booking confirmation email sent successfully:', response);
     return true;
   } catch (error) {
-    console.error('Failed to send booking confirmation email:', error);
+    // EmailJS often returns { status, text } on errors.
+    const maybeErr = error as { status?: number; text?: string };
+    console.error('Failed to send booking confirmation email:', {
+      status: maybeErr?.status,
+      text: maybeErr?.text,
+      raw: error,
+    });
     return false;
   }
 };
