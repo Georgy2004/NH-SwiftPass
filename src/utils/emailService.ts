@@ -18,8 +18,8 @@ interface BookingEmailParams {
 }
 
 export const sendBookingConfirmationEmail = async (params: BookingEmailParams): Promise<boolean> => {
-  // Check if EmailJS is configured
-  if (EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
+  // Check if EmailJS is configured (public key should not be placeholder)
+  if (!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY.includes('YOUR_')) {
     console.warn('EmailJS not configured. Please set up EmailJS credentials in src/utils/emailService.ts');
     return false;
   }
