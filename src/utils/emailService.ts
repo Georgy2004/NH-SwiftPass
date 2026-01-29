@@ -2,9 +2,9 @@ import emailjs from '@emailjs/browser';
 
 // EmailJS configuration
 // You need to set these values from your EmailJS dashboard (https://dashboard.emailjs.com)
-const EMAILJS_SERVICE_ID = 'service_tollexpress'; // Replace with your EmailJS service ID
-const EMAILJS_TEMPLATE_ID = 'template_booking';   // Replace with your EmailJS template ID
-const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';     // Replace with your EmailJS public key
+const EMAILJS_SERVICE_ID = 'service_8pvwqtb'; // Replace with your EmailJS service ID
+const EMAILJS_TEMPLATE_ID = 'template_qj2l0g2';   // Replace with your EmailJS template ID
+const EMAILJS_PUBLIC_KEY = 'NncLVIw-8ktVrtu3k';     // Replace with your EmailJS public key
 
 interface BookingEmailParams {
   to_email: string;
