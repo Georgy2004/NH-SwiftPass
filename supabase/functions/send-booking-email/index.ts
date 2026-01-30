@@ -27,8 +27,9 @@ const handler = async (req: Request): Promise<Response> => {
     const EMAILJS_SERVICE_ID = Deno.env.get("EMAILJS_SERVICE_ID");
     const EMAILJS_TEMPLATE_ID = Deno.env.get("EMAILJS_TEMPLATE_ID");
     const EMAILJS_PUBLIC_KEY = Deno.env.get("EMAILJS_PUBLIC_KEY");
+    const EMAILJS_PRIVATE_KEY = Deno.env.get("EMAILJS_PRIVATE_KEY");
 
-    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY || !EMAILJS_PRIVATE_KEY) {
       console.error("Missing EmailJS configuration");
       return new Response(
         JSON.stringify({ error: "EmailJS not configured", success: false }),
@@ -66,7 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
       distance: params.distance ? `${params.distance.toFixed(2)} km` : "N/A",
     };
 
-    // Call EmailJS REST API (server-to-server, no domain restrictions)
+    // Call EmailJS REST API with private key for server-to-server authentication
     const emailjsResponse = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
       headers: {
@@ -76,6 +77,7 @@ const handler = async (req: Request): Promise<Response> => {
         service_id: EMAILJS_SERVICE_ID,
         template_id: EMAILJS_TEMPLATE_ID,
         user_id: EMAILJS_PUBLIC_KEY,
+        accessToken: EMAILJS_PRIVATE_KEY,
         template_params: templateParams,
       }),
     });
