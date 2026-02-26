@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Users, CreditCard, TrendingUp, Clock, LogOut, Search, Car, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import dayjs from 'dayjs';
+import MfaSetup from '@/components/MfaSetup';
 
 interface Driver {
   id: string;
@@ -543,6 +544,11 @@ const AdminDashboard = () => {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* MFA Setup */}
+        <div className="mt-8">
+          <MfaSetup />
         </div>
 
         {/* System Status */}
