@@ -166,7 +166,7 @@ const TransactionHistory = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => exportToPDF(transactions, user.email)}
+                    onClick={async () => { try { await exportToPDF(transactions, user.email); } catch (e) { console.error('PDF export failed:', e); } }}
                     className="flex items-center gap-2"
                   >
                     <FileText className="h-4 w-4" />
@@ -175,7 +175,7 @@ const TransactionHistory = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => exportToExcel(transactions, user.email)}
+                    onClick={async () => { try { await exportToExcel(transactions, user.email); } catch (e) { console.error('Excel export failed:', e); } }}
                     className="flex items-center gap-2"
                   >
                     <FileSpreadsheet className="h-4 w-4" />

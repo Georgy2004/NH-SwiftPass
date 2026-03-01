@@ -1,6 +1,9 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 interface Transaction {
   id: string;
@@ -49,12 +52,29 @@ const getAmountPrefix = (type: string): string => {
   }
 };
 
-export const exportToPDF = (transactions: Transaction[], userEmail: string): void => {
+const isNativePlatform = (): boolean => {
+  return Capacitor.isNativePlatform();
+};
+
+const saveAndShareFile = async (fileName: string, base64Data: string, mimeType: string): Promise<void> => {
+  const result = await Filesystem.writeFile({
+    path: fileName,
+    data: base64Data,
+    directory: Directory.Cache,
+  });
+
+  await Share.share({
+    title: fileName,
+    url: result.uri,
+  });
+};
+
+export const exportToPDF = async (transactions: Transaction[], userEmail: string): Promise<void> => {
   const doc = new jsPDF();
   
   // Header
   doc.setFontSize(20);
-  doc.setTextColor(30, 64, 175); // highway-blue color
+  doc.setTextColor(30, 64, 175);
   doc.text('Transaction History Report', 14, 22);
   
   // User info
@@ -64,7 +84,6 @@ export const exportToPDF = (transactions: Transaction[], userEmail: string): voi
   doc.text(`Report Date: ${new Date().toLocaleDateString('en-IN')}`, 14, 38);
   doc.text(`Total Transactions: ${transactions.length}`, 14, 44);
   
-  // Calculate totals
   const credits = transactions
     .filter(t => t.type === 'account_topup' || t.type === 'refund')
     .reduce((sum, t) => sum + t.amount, 0);
@@ -75,7 +94,6 @@ export const exportToPDF = (transactions: Transaction[], userEmail: string): voi
   doc.text(`Total Credits: ₹${credits.toFixed(2)}`, 14, 50);
   doc.text(`Total Debits: ₹${debits.toFixed(2)}`, 14, 56);
   
-  // Table data
   const tableData = transactions.map((t) => [
     formatDate(t.created_at),
     getTransactionTypeLabel(t.type),
@@ -83,24 +101,13 @@ export const exportToPDF = (transactions: Transaction[], userEmail: string): voi
     `${getAmountPrefix(t.type)}₹${t.amount.toFixed(2)}`
   ]);
   
-  // Generate table
   autoTable(doc, {
     startY: 65,
     head: [['Date & Time', 'Type', 'Description', 'Amount']],
     body: tableData,
-    headStyles: {
-      fillColor: [30, 64, 175],
-      textColor: 255,
-      fontSize: 10,
-      fontStyle: 'bold'
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: 50
-    },
-    alternateRowStyles: {
-      fillColor: [240, 248, 255]
-    },
+    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 10, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 9, textColor: 50 },
+    alternateRowStyles: { fillColor: [240, 248, 255] },
     columnStyles: {
       0: { cellWidth: 45 },
       1: { cellWidth: 35 },
@@ -110,7 +117,6 @@ export const exportToPDF = (transactions: Transaction[], userEmail: string): voi
     margin: { top: 65 }
   });
   
-  // Footer
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
@@ -124,12 +130,17 @@ export const exportToPDF = (transactions: Transaction[], userEmail: string): voi
     );
   }
   
-  // Download
-  doc.save(`transaction-history-${new Date().toISOString().split('T')[0]}.pdf`);
+  const fileName = `transaction-history-${new Date().toISOString().split('T')[0]}.pdf`;
+
+  if (isNativePlatform()) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    await saveAndShareFile(fileName, base64, 'application/pdf');
+  } else {
+    doc.save(fileName);
+  }
 };
 
-export const exportToExcel = (transactions: Transaction[], userEmail: string): void => {
-  // Prepare data for Excel
+export const exportToExcel = async (transactions: Transaction[], userEmail: string): Promise<void> => {
   const excelData = transactions.map((t) => ({
     'Date & Time': formatDate(t.created_at),
     'Type': getTransactionTypeLabel(t.type),
@@ -139,10 +150,8 @@ export const exportToExcel = (transactions: Transaction[], userEmail: string): v
     'Transaction ID': t.id
   }));
   
-  // Create workbook and worksheet
   const wb = XLSX.utils.book_new();
   
-  // Summary sheet
   const credits = transactions
     .filter(t => t.type === 'account_topup' || t.type === 'refund')
     .reduce((sum, t) => sum + t.amount, 0);
@@ -164,21 +173,18 @@ export const exportToExcel = (transactions: Transaction[], userEmail: string): v
   const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
   XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
   
-  // Transactions sheet
   const ws = XLSX.utils.json_to_sheet(excelData);
-  
-  // Set column widths
   ws['!cols'] = [
-    { wch: 20 }, // Date & Time
-    { wch: 18 }, // Type
-    { wch: 40 }, // Description
-    { wch: 12 }, // Amount
-    { wch: 10 }, // Credit/Debit
-    { wch: 36 }  // Transaction ID
+    { wch: 20 }, { wch: 18 }, { wch: 40 }, { wch: 12 }, { wch: 10 }, { wch: 36 }
   ];
-  
   XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
   
-  // Download
-  XLSX.writeFile(wb, `transaction-history-${new Date().toISOString().split('T')[0]}.xlsx`);
+  const fileName = `transaction-history-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+  if (isNativePlatform()) {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+    await saveAndShareFile(fileName, wbout, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  } else {
+    XLSX.writeFile(wb, fileName);
+  }
 };
