@@ -322,7 +322,9 @@ const AdminDashboard = () => {
       {/* Header */}
       <header className="highway-gradient text-white py-6 shadow-lg">
         <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+
+            {/* Left Side */}
             <div className="flex items-center space-x-3">
               <Car className="h-8 w-8" />
               <div>
@@ -330,25 +332,28 @@ const AdminDashboard = () => {
                 <p className="text-blue-100">NH SwiftPass Management Portal</p>
               </div>
             </div>
-            {/* Button for AI No Plate Detection and existing Logout button */}
-            <div className="flex space-x-4">
-              <Button 
-                variant="outline" 
-                className="bg-white text-highway-blue hover:bg-gray-100"
+
+            {/* Right Side Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto bg-white text-highway-blue hover:bg-gray-100"
                 onClick={handleAIDetection}
               >
                 <Camera className="h-4 w-4 mr-2" />
                 AI No Plate Detection
               </Button>
-              <Button 
-                variant="outline" 
-                className="bg-white text-highway-blue hover:bg-gray-100"
+
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto bg-white text-highway-blue hover:bg-gray-100"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
             </div>
+
           </div>
         </div>
       </header>
